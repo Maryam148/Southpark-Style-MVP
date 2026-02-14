@@ -75,7 +75,7 @@ export default function GenerateClient({ drafts, isPaid }: GenerateClientProps) 
       const data = await res.json();
 
       if (!res.ok) {
-        let errorMsg = data.error || "Generation failed";
+        const errorMsg = data.error || "Generation failed";
 
         // Custom handling for quota or other known status codes
         if (res.status === 402) {
@@ -92,7 +92,7 @@ export default function GenerateClient({ drafts, isPaid }: GenerateClientProps) 
       }
 
       router.push(`/dashboard/episodes/${data.episode_id}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearInterval(interval);
       console.error("Generation fetch error:", err);
       setError("Network error — please try again.");

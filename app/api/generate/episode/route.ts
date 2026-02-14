@@ -132,9 +132,10 @@ export async function POST(req: NextRequest) {
                         const publicId = `ep_${episode_id}_s${item.scene}_c${item.char}_d${item.dial}`;
                         const url = await uploadAudio(buffer, publicId);
                         return { ...item, url };
-                    } catch (err: any) {
+                    } catch (err: unknown) {
                         console.error(`[Generate] Voice synthesis FAILED:`, err);
-                        if (err?.message?.includes("quota_exceeded")) {
+                        const errorMessage = (err as Error)?.message || String(err);
+                        if (errorMessage.includes("quota_exceeded")) {
                             throw new Error("ELEVENLABS_QUOTA_EXCEEDED");
                         }
                         return { ...item, url: null };
@@ -184,10 +185,11 @@ export async function POST(req: NextRequest) {
             status: "completed",
             playable: playableEpisode,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Generate episode error:", error);
+        const errorMessage = (error as Error)?.message || String(error);
 
-        if (error?.message === "ELEVENLABS_QUOTA_EXCEEDED") {
+        if (errorMessage === "ELEVENLABS_QUOTA_EXCEEDED") {
             return NextResponse.json(
                 { error: "ElevenLabs API quota exceeded. Please upgrade your plan or wait for your character limit to reset." },
                 { status: 402 } // Payment Required (fitting for quota)
