@@ -22,7 +22,7 @@ export default async function GeneratePage() {
     return (
         <GenerateClient
             drafts={(drafts as Episode[]) || []}
-            isPaid={user.is_paid}
+            isPaid={true} // TODO: revert to user.is_paid after client demo
         />
     );
 }

@@ -47,6 +47,9 @@ export default function PaymentGate({
     );
   }
 
+  // TODO: revert after client demo — temporarily bypass payment gate
+  return <>{children}</>;
+
   if (user?.is_paid) {
     return <>{children}</>;
   }
