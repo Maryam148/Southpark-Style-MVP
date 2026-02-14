@@ -1,13 +1,9 @@
-import { createServerSupabaseClient } from "@/lib/supabaseServer";
+import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import UploadScriptClient from "./UploadScriptClient";
 
 export default async function UploadScriptPage() {
-    const supabase = await createServerSupabaseClient();
-
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getUser();
 
     if (!user) redirect("/login");
 

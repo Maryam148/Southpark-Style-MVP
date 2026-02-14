@@ -24,12 +24,27 @@ export async function getUser(): Promise<User | null> {
         .single();
 
     if (!profile) {
-        // Auth exists but no profile row yet — return a minimal User
+        // Auth exists but no profile row yet — create it now to prevent FK errors
+        const newProfile = {
+            id: authUser.id,
+            email: authUser.email!, // Email is required in our schema
+            full_name: authUser.user_metadata?.full_name,
+            avatar_url: authUser.user_metadata?.avatar_url,
+        };
+
+        const { error: insertError } = await supabase.from("users").insert(newProfile);
+
+        if (insertError) {
+            console.error("Failed to create user profile:", insertError);
+            // We'll still return the minimal user to allow the UI to render,
+            // but actions requiring the DB row (like creating episodes) will fail.
+        }
+
         return {
             id: authUser.id,
             email: authUser.email ?? "",
             full_name: authUser.user_metadata?.full_name ?? null,
-            avatar_url: null,
+            avatar_url: authUser.user_metadata?.avatar_url ?? null,
             credits: 0,
             plan: "free",
             is_paid: false,
