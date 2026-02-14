@@ -212,9 +212,9 @@ export default function UploadScriptClient({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Upload Script</h1>
+        <h1 className="text-xl font-bold text-white sm:text-2xl">Upload Script</h1>
         <p className="mt-1 text-sm text-muted-text-1">
           Enter your show details and paste episode script JSON.
         </p>
@@ -271,7 +271,7 @@ export default function UploadScriptClient({ userId }: { userId: string }) {
       </div>
 
       {/* Script JSON textarea */}
-      <div className="rounded-lg border border-sk-border bg-surface-1 p-6">
+      <div className="rounded-lg border border-sk-border bg-surface-1 p-4 sm:p-6">
         <div className="mb-3 flex items-center justify-between">
           <label
             htmlFor="script-json"
@@ -302,13 +302,13 @@ export default function UploadScriptClient({ userId }: { userId: string }) {
             setErrors([]);
             setSaved(false);
           }}
-          rows={18}
+          rows={12}
           spellCheck={false}
           placeholder='{\n  "episodeTitle": "...",\n  "scenes": [ ... ]\n}'
           className="w-full resize-y rounded-md border border-sk-border bg-surface-2 px-4 py-3 font-mono text-sm text-muted-text-1 placeholder-muted-text-3 outline-none transition-colors duration-150 focus:border-violet-primary focus:ring-1 focus:ring-violet-primary/50"
         />
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={handleValidate}

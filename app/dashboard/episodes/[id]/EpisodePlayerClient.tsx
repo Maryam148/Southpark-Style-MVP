@@ -51,7 +51,7 @@ export default function EpisodePlayerClient({
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-xl font-bold text-white sm:text-2xl">
             {title || "Episode"}
           </h1>
           <p className="mt-0.5 text-sm text-muted-text-2">

@@ -225,7 +225,7 @@ export default function AssetLibraryClient({
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Asset Library</h1>
+          <h1 className="text-xl font-bold text-white sm:text-2xl">Asset Library</h1>
           <p className="mt-1 text-sm text-muted-text-1">
             Characters, backgrounds, and props for your episodes.
           </p>
@@ -247,7 +247,7 @@ export default function AssetLibraryClient({
 
       {/* Upload Panel */}
       {showUploadPanel && (
-        <div className="rounded-lg border border-violet-primary/30 bg-violet-primary/5 p-6">
+        <div className="rounded-lg border border-violet-primary/30 bg-violet-primary/5 p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-white">Upload New Asset</h2>
           <p className="mt-1 text-xs text-muted-text-2">
             Name assets to match script references (e.g.{" "}
@@ -304,10 +304,10 @@ export default function AssetLibraryClient({
       )}
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-0 sm:px-0 sm:pb-0">
         <button
           onClick={() => setFilterType(TYPE_FILTER_ALL)}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${filterType === TYPE_FILTER_ALL
+          className={`flex-shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${filterType === TYPE_FILTER_ALL
               ? "bg-violet-primary text-white"
               : "bg-surface-2 text-muted-text-2 hover:text-white"
             }`}
@@ -321,7 +321,7 @@ export default function AssetLibraryClient({
             <button
               key={t.value}
               onClick={() => setFilterType(t.value)}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${filterType === t.value
+              className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${filterType === t.value
                   ? "bg-violet-primary text-white"
                   : "bg-surface-2 text-muted-text-2 hover:text-white"
                 }`}
@@ -347,7 +347,7 @@ export default function AssetLibraryClient({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
           {filteredAssets.map((asset) => (
             <AssetCard
               key={asset.id}

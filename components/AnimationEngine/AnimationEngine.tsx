@@ -593,7 +593,7 @@ export default function AnimationEngine({
 
     return (
         <div
-            className="relative w-full overflow-hidden rounded-xl border border-gray-800 bg-black shadow-2xl cursor-pointer"
+            className="relative w-full overflow-hidden rounded-lg border border-sk-border bg-black cursor-pointer"
             onClick={() => {
                 if (audioRef.current?.paused && !paused) {
                     audioRef.current.play().catch(() => { });

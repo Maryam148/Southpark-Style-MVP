@@ -36,16 +36,16 @@ export default async function EpisodesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">My Episodes</h1>
+          <h1 className="text-xl font-bold text-white sm:text-2xl">My Episodes</h1>
           <p className="mt-1 text-sm text-muted-text-1">
             All your episodes in one place.
           </p>
         </div>
         <Link
           href="/dashboard/generate"
-          className="inline-flex items-center gap-2 rounded-md bg-violet-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-violet-hover"
+          className="inline-flex w-fit items-center gap-2 rounded-md bg-violet-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-violet-hover"
         >
           <Plus className="h-4 w-4" />
           Generate New
@@ -76,7 +76,7 @@ export default async function EpisodesPage() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {episodes.map((ep) => {
             const meta = ep.metadata as Record<string, unknown> | null;
             const sceneCount = (meta?.scene_count as number) ?? null;
