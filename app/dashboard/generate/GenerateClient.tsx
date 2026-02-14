@@ -105,7 +105,7 @@ export default function GenerateClient({ drafts, isPaid }: GenerateClientProps) 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Generate Episode</h1>
+        <h1 className="text-xl font-bold text-white sm:text-2xl">Generate Episode</h1>
         <p className="mt-1 text-sm text-muted-text-1">
           Select a draft script and generate your animated episode.
         </p>
@@ -118,7 +118,7 @@ export default function GenerateClient({ drafts, isPaid }: GenerateClientProps) 
         </div>
       )}
 
-      <div className="space-y-5 rounded-lg border border-sk-border bg-surface-1 p-6">
+      <div className="space-y-5 rounded-lg border border-sk-border bg-surface-1 p-4 sm:p-6">
         {/* Episode selector */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-muted-text-1">

@@ -53,7 +53,7 @@ export default function PaymentGate({
 
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="mx-auto max-w-sm rounded-lg border border-sk-border bg-surface-1 p-8">
+      <div className="mx-4 max-w-sm rounded-lg border border-sk-border bg-surface-1 p-6 sm:mx-auto sm:p-8">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-violet-primary/10">
           <Lock className="h-5 w-5 text-violet-primary" />
         </div>

@@ -4,7 +4,7 @@ import { XCircle } from "lucide-react";
 export default function PaymentCancelPage() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="mx-auto max-w-sm">
+      <div className="mx-auto max-w-sm px-4 sm:px-0">
         <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-muted-text-3/10">
           <XCircle className="h-7 w-7 text-muted-text-2" />
         </div>

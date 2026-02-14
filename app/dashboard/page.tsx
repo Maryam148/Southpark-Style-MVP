@@ -38,13 +38,13 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">{greeting}</h1>
+        <h1 className="text-xl font-bold text-white sm:text-2xl">{greeting}</h1>
         <p className="mt-1 text-sm text-muted-text-1">
           Pick up where you left off or start something new.
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         {quickActions.map((action) => {
           const Icon = action.icon;
           return (

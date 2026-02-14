@@ -4,7 +4,7 @@ import { CheckCircle2, Wand2 } from "lucide-react";
 export default function PaymentSuccessPage() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="mx-auto max-w-sm">
+      <div className="mx-auto max-w-sm px-4 sm:px-0">
         <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10">
           <CheckCircle2 className="h-7 w-7 text-green-400" />
         </div>
