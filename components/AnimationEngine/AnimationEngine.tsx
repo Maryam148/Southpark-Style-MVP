@@ -171,6 +171,17 @@ function buildState(scene: SceneData): EngineState {
 }
 
 /* ──────────────────────────────────────────────────────────
+    Premium Gradient Helper
+   ────────────────────────────────────────────────────────── */
+function createPremiumGradient(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, baseColor: string) {
+    const grad = ctx.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, baseColor);
+    // Darken slightly for bottom
+    grad.addColorStop(1, "rgba(0,0,0,0.2)");
+    return grad;
+}
+
+/* ──────────────────────────────────────────────────────────
     Drawing helpers
    ────────────────────────────────────────────────────────── */
 
@@ -238,7 +249,7 @@ function drawCharacter(
         // But CharacterState doesn't know it directly anymore. 
         // We'll pass it in via cs or look it up.
         // For simplicity, I'll add currentMouthShape to CharacterState
-        const shape = cs.currentMouthShape || \"talking\";
+        const shape = (cs as any).currentMouthShape || "talking";
         mouthLayer = cs.mouths[shape] || cs.mouths.talking || cs.mouths.neutral;
     } else {
         mouthLayer = cs.mouths.neutral;
@@ -509,7 +520,7 @@ export default function AnimationEngine({
                             const entry = state.globalDialogueQueue[state.currentQueueIdx];
                             if (entry) {
                                 const dl = sceneData.characters[entry.originalCharIdx].dialogue[entry.lineIdx];
-                                cs.currentMouthShape = dl?.mouthShape || \"talking\";
+                                (cs as any).currentMouthShape = dl?.mouthShape || "talking";
                             }
                             cs.mouthOpen = shouldMouthMove ? !cs.mouthOpen : false;
                         }
@@ -554,7 +565,7 @@ export default function AnimationEngine({
             }
 
             rafRef.current = requestAnimationFrame(tick);
-        }, [paused, playVoice, stopAudio, sceneData]);
+        }, [paused, playVoice, stopAudio]);
 
     /* ── Manage play/pause state explicitly ──────────────── */
     useEffect(() => {

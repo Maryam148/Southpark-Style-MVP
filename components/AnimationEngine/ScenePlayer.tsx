@@ -48,6 +48,7 @@ export default function ScenePlayer({
     let est = 0;
     scenes.forEach((s) => {
       // Logic from AnimationEngine: DIALOGUE_DURATION_MS + 1200 per dialogue entry
+      const maxLines = Math.max(0, ...s.characters.map((c) => c.dialogue.length));
       // This is a rough heuristic matching buildState interleaving
       let lineCount = 0;
       s.characters.forEach((c) => (lineCount += c.dialogue.length));
@@ -99,7 +100,7 @@ export default function ScenePlayer({
       setCurrentTime(now);
       // Synchronize slider state on local ref if needed, but here we just use state
     },
-    [currentIdx, getPastDuration, scenes]
+    [currentIdx, scenes]
   );
 
   const handleSceneComplete = useCallback(() => {
