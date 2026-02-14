@@ -100,7 +100,8 @@ export default function GenerateClient({ drafts, isPaid }: GenerateClientProps) 
     }
   };
 
-  const canGenerate = selectedId && isPaid && !generating;
+  // TEMPORARY: Allow generation without isPaid for demo
+  const canGenerate = selectedId && !generating;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -215,7 +216,8 @@ export default function GenerateClient({ drafts, isPaid }: GenerateClientProps) 
               >
                 Upgrade Now — $9.99
               </button>
-              {process.env.NODE_ENV === "development" && (
+              {/* TEMPORARY: Show bypass in production for client review */}
+              {true && (
                 <button
                   onClick={handleBypass}
                   className="rounded-md border border-amber-700/50 px-3 py-1.5 text-xs font-medium text-amber-400 transition-colors duration-150 hover:bg-amber-900/30"

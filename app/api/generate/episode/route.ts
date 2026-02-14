@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
                         console.error(`[Generate] Voice synthesis FAILED:`, err);
                         const errorMessage = (err as Error)?.message || String(err);
                         if (errorMessage.includes("quota_exceeded")) {
-                            throw new Error("ELEVENLABS_QUOTA_EXCEEDED");
+                            console.warn("[Generate] ElevenLabs quota exceeded. Proceeding without audio for this line.");
                         }
                         return { ...item, url: null };
                     }

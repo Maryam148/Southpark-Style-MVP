@@ -3,9 +3,12 @@ import { createServerSupabaseClient } from "@/lib/supabaseServer";
 import { createAdminClient } from "@/lib/supabaseAdmin";
 
 export async function POST(_req: NextRequest) {
+    // TEMPORARY: Allow in production for client review
+    /*
     if (process.env.NODE_ENV !== "development") {
         return NextResponse.json({ error: "Dev only" }, { status: 403 });
     }
+    */
 
     const supabase = await createServerSupabaseClient();
     const {
