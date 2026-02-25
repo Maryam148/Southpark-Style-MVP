@@ -360,9 +360,11 @@ export default function AnimationEngine({
 
     /* ── Persistent Audio ───────────────────────────────── */
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const audioFailedRef = useRef(false);
     useEffect(() => {
         const audio = new Audio();
         audio.crossOrigin = "anonymous";
+        audio.addEventListener("error", () => { audioFailedRef.current = true; });
         audioRef.current = audio;
         return () => {
             audio.pause();
@@ -390,6 +392,7 @@ export default function AnimationEngine({
             return;
         }
 
+        audioFailedRef.current = false;
         console.log(`[AnimationEngine] Playing (${queueIdx}): ${url}`);
         audio.src = url;
         audio.load();
@@ -464,25 +467,30 @@ export default function AnimationEngine({
                 if (currentEntry) {
                     const audio = audioRef.current;
                     const hasValidAudioDuration = audio && !isNaN(audio.duration) && audio.duration > 0;
-
-                    let lineDuration: number;
-                    const isReady = audio && audio.readyState >= 3; // HAVE_FUTURE_DATA
-
-                    if (audio && !isReady) {
-                        // If audio is present but not ready, wait a bit but don't hang for 10s
-                        // If it takes more than 2s, we assume it's stuck or slow and use fallback duration
-                        const timeLoading = now - state.lastAdvance;
-                        lineDuration = timeLoading > 2000 ? (DIALOGUE_DURATION_MS + 1200) : 10000;
-                    } else if (hasValidAudioDuration) {
-                        lineDuration = audio!.duration * 1000 + 1200; // 1.2s padding
-                    } else {
-                        lineDuration = DIALOGUE_DURATION_MS + 1200;
-                    }
+                    const currentLine = sceneData.characters[currentEntry.originalCharIdx].dialogue[currentEntry.lineIdx];
+                    const hasAudioUrl = !!currentLine.audio;
+                    const audioFailed = audioFailedRef.current;
 
                     const timeSinceAdvance = now - state.lastAdvance;
                     const audioEnded = audio?.ended || false;
 
-                    if (audioEnded || timeSinceAdvance >= lineDuration) {
+                    let shouldAdvance = false;
+                    if (hasAudioUrl && !audioFailed) {
+                        if (audioEnded) {
+                            shouldAdvance = true;
+                        } else if (hasValidAudioDuration) {
+                            // Known duration: use it as upper bound with small padding
+                            shouldAdvance = timeSinceAdvance >= audio!.duration * 1000 + 800;
+                        } else {
+                            // Still loading from API — wait up to 30s safety net
+                            shouldAdvance = timeSinceAdvance >= 30000;
+                        }
+                    } else {
+                        // No audio or failed to load: use fixed timer fallback
+                        shouldAdvance = timeSinceAdvance >= DIALOGUE_DURATION_MS + 1200;
+                    }
+
+                    if (shouldAdvance) {
                         state.lastAdvance = now;
 
                         // Stop current talker

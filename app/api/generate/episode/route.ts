@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabaseServer";
 import type { ScriptJSON } from "@/types";
 import type { SceneData, SceneCharacter } from "@/components/AnimationEngine/types";
-import { synthesizeSpeech, DEFAULT_VOICE_ID } from "@/lib/elevenlabs";
-import { uploadAudio } from "@/lib/cloudinary";
+import { VOICE_MAP, DEFAULT_VOICE_ID } from "@/lib/tts";
 
 export async function POST(req: NextRequest) {
     try {
@@ -104,53 +103,18 @@ export async function POST(req: NextRequest) {
             };
         });
 
-        /* ── 5. Voice Generation (ElevenLabs) — Batched Parallel ── */
-        console.log("[Generate] Starting voice synthesis...");
-        const voiceId = DEFAULT_VOICE_ID;
-        const BATCH_SIZE = 4;
-
-        // Collect all dialogue lines with their references
-        const allLines: { scene: number; char: number; dial: number; line: string }[] = [];
-        for (let sIdx = 0; sIdx < resolvedScenes.length; sIdx++) {
-            const scene = resolvedScenes[sIdx];
-            for (let cIdx = 0; cIdx < scene.characters.length; cIdx++) {
-                const char = scene.characters[cIdx];
-                for (let dIdx = 0; dIdx < char.dialogue.length; dIdx++) {
-                    allLines.push({ scene: sIdx, char: cIdx, dial: dIdx, line: char.dialogue[dIdx].line });
+        /* ── 5. Assign on-demand TTS audio URLs ── */
+        console.log("[Generate] Assigning TTS audio URLs...");
+        for (const scene of resolvedScenes) {
+            for (const char of scene.characters) {
+                const voiceId = VOICE_MAP[char.name.toLowerCase()] || DEFAULT_VOICE_ID;
+                for (const dl of char.dialogue) {
+                    const params = new URLSearchParams({ text: dl.line, voice: voiceId });
+                    dl.audio = `/api/tts?${params.toString()}`;
                 }
             }
         }
-
-        // Process in batches of BATCH_SIZE
-        for (let i = 0; i < allLines.length; i += BATCH_SIZE) {
-            const batch = allLines.slice(i, i + BATCH_SIZE);
-            const results = await Promise.all(
-                batch.map(async (item) => {
-                    try {
-                        console.log(`[Generate] Synthesizing: "${item.line.substring(0, 40)}..."`);
-                        const buffer = await synthesizeSpeech(item.line, voiceId);
-                        const publicId = `ep_${episode_id}_s${item.scene}_c${item.char}_d${item.dial}`;
-                        const url = await uploadAudio(buffer, publicId);
-                        return { ...item, url };
-                    } catch (err: unknown) {
-                        console.error(`[Generate] Voice synthesis FAILED:`, err);
-                        const errorMessage = (err as Error)?.message || String(err);
-                        if (errorMessage.includes("quota_exceeded")) {
-                            console.warn("[Generate] ElevenLabs quota exceeded. Proceeding without audio for this line.");
-                        }
-                        return { ...item, url: null };
-                    }
-                })
-            );
-
-            // Assign results back
-            for (const r of results) {
-                if (r.url) {
-                    resolvedScenes[r.scene].characters[r.char].dialogue[r.dial].audio = r.url;
-                }
-            }
-        }
-        console.log("[Generate] Voice synthesis complete.");
+        console.log("[Generate] TTS URLs assigned.");
 
         const playableEpisode = {
             episodeTitle: scriptJSON.episodeTitle,
@@ -187,14 +151,6 @@ export async function POST(req: NextRequest) {
         });
     } catch (error: unknown) {
         console.error("Generate episode error:", error);
-        const errorMessage = (error as Error)?.message || String(error);
-
-        if (errorMessage === "ELEVENLABS_QUOTA_EXCEEDED") {
-            return NextResponse.json(
-                { error: "ElevenLabs API quota exceeded. Please upgrade your plan or wait for your character limit to reset." },
-                { status: 402 } // Payment Required (fitting for quota)
-            );
-        }
 
         return NextResponse.json(
             { error: "Internal server error" },
