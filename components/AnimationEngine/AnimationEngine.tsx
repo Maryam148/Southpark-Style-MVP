@@ -360,38 +360,48 @@ export default function AnimationEngine({
 
     /* ── Persistent Audio ───────────────────────────────── */
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const preloadRef = useRef<HTMLAudioElement | null>(null); // pre-loads next line
+    const preloadedUrlRef = useRef<string>(""); // URL currently in preloadRef
     const audioFailedRef = useRef(false);
     const pendingUrlRef = useRef<string | undefined>(undefined);
+
     useEffect(() => {
-        const audio = new Audio();
-        audio.crossOrigin = "anonymous";
+        const makeAudio = () => {
+            const a = new Audio();
+            a.crossOrigin = "anonymous";
+            a.preload = "auto";
+            return a;
+        };
+        const audio = makeAudio();
         audio.addEventListener("error", () => { audioFailedRef.current = true; });
         audioRef.current = audio;
+        preloadRef.current = makeAudio();
         return () => {
-            audio.pause();
-            audio.src = "";
-            audioRef.current = null;
+            audio.pause(); audio.src = ""; audioRef.current = null;
+            preloadRef.current!.pause(); preloadRef.current!.src = ""; preloadRef.current = null;
         };
     }, []);
 
     const stopAudio = useCallback(() => {
-        if (audioRef.current) {
-            audioRef.current.pause();
-        }
+        audioRef.current?.pause();
+    }, []);
+
+    // Start buffering a URL into the preload element (background, no play)
+    const preloadVoice = useCallback((url: string | undefined) => {
+        if (!url || preloadedUrlRef.current === url) return;
+        const pre = preloadRef.current;
+        if (!pre) return;
+        preloadedUrlRef.current = url;
+        pre.src = url;
+        pre.load();
     }, []);
 
     const playVoice = useCallback((url: string | undefined, queueIdx: number, offsetMs: number = 0) => {
         if (lastPlayedIdxRef.current === queueIdx && offsetMs === 0) return;
         lastPlayedIdxRef.current = queueIdx;
 
-        const audio = audioRef.current;
-        if (!audio) return;
-
-        audio.pause();
-        if (!url) {
-            console.log("[AnimationEngine] No audio for index", queueIdx);
-            return;
-        }
+        audioRef.current?.pause();
+        if (!url) return;
 
         audioFailedRef.current = false;
 
@@ -402,22 +412,36 @@ export default function AnimationEngine({
         }
 
         pendingUrlRef.current = undefined;
-        console.log(`[AnimationEngine] Playing (${queueIdx}): ${url}`);
-        audio.src = url;
-        audio.load();
+
+        // If this URL is already buffered in preloadRef, swap it in for instant playback
+        const pre = preloadRef.current;
+        const isPreloaded = pre && preloadedUrlRef.current === url && pre.readyState >= 3;
+        if (isPreloaded && pre) {
+            // Swap: preloaded becomes main audio
+            const old = audioRef.current!;
+            audioRef.current = pre;
+            preloadRef.current = old;
+            preloadedUrlRef.current = "";
+        } else {
+            const audio = audioRef.current!;
+            audio.src = url;
+            audio.load();
+        }
+
+        const target = audioRef.current!;
 
         if (offsetMs > 0) {
             const seek = () => {
-                if (audio.readyState >= 1) {
-                    audio.currentTime = offsetMs / 1000;
-                    audio.removeEventListener("loadedmetadata", seek);
+                if (target.readyState >= 1) {
+                    target.currentTime = offsetMs / 1000;
+                    target.removeEventListener("loadedmetadata", seek);
                 }
             };
-            audio.addEventListener("loadedmetadata", seek);
+            target.addEventListener("loadedmetadata", seek);
             seek();
         }
 
-        audio.play().catch(e => {
+        target.play().catch(e => {
             console.warn("[AnimationEngine] Play failed:", e.message);
         });
     }, [paused]);
@@ -462,10 +486,16 @@ export default function AnimationEngine({
                         const entry = state.globalDialogueQueue[targetIdx];
                         const cs = state.characters[entry.charIdx];
                         cs.isTalking = true;
-                        // We need a way to pass the specific line to the character state for mouth shape
                         const line = sceneData.characters[entry.originalCharIdx].dialogue[entry.lineIdx];
                         const offset = initialTime * 1000 - accumulatedMs;
                         playVoice(line.audio, targetIdx, offset);
+                        // Pre-load line 1 while line 0 plays
+                        const nextIdx = targetIdx + 1;
+                        if (nextIdx < state.globalDialogueQueue.length) {
+                            const nextEntry = state.globalDialogueQueue[nextIdx];
+                            const nextLine = sceneData.characters[nextEntry.originalCharIdx].dialogue[nextEntry.lineIdx];
+                            preloadVoice(nextLine.audio);
+                        }
                     }
                 }
 
@@ -483,17 +513,11 @@ export default function AnimationEngine({
 
                     let shouldAdvance = false;
                     if (hasAudioUrl && !audioFailed) {
-                        if (audioEnded) {
-                            shouldAdvance = true;
-                        } else if (hasValidAudioDuration) {
-                            // Known duration: use it as upper bound with small padding
-                            shouldAdvance = timeSinceAdvance >= audio!.duration * 1000 + 800;
-                        } else {
-                            // Still loading from API — wait up to 30s safety net
-                            shouldAdvance = timeSinceAdvance >= 30000;
-                        }
+                        // Only advance when audio actually ends — never cut it short
+                        // 30s safety net prevents infinite hang if audio gets stuck
+                        shouldAdvance = audioEnded || timeSinceAdvance >= 30000;
                     } else {
-                        // No audio or failed to load: use fixed timer fallback
+                        // No audio or failed: use fixed timer fallback
                         shouldAdvance = timeSinceAdvance >= DIALOGUE_DURATION_MS + 1200;
                     }
 
@@ -517,6 +541,13 @@ export default function AnimationEngine({
                             ncs.isTalking = true;
                             const line = sceneData.characters[entry.originalCharIdx].dialogue[entry.lineIdx];
                             playVoice(line.audio, state.currentQueueIdx);
+                            // Pre-load the line AFTER this one while current plays
+                            const nextNextIdx = state.currentQueueIdx + 1;
+                            if (nextNextIdx < state.globalDialogueQueue.length) {
+                                const nnEntry = state.globalDialogueQueue[nextNextIdx];
+                                const nnLine = sceneData.characters[nnEntry.originalCharIdx].dialogue[nnEntry.lineIdx];
+                                preloadVoice(nnLine.audio);
+                            }
                         }
                     }
                 }
@@ -577,29 +608,30 @@ export default function AnimationEngine({
             }
 
             rafRef.current = requestAnimationFrame(tick);
-        }, [paused, playVoice, stopAudio, initialTime, sceneData.characters]);
+        }, [paused, playVoice, preloadVoice, stopAudio, initialTime, sceneData.characters]);
 
     /* ── Manage play/pause state explicitly ──────────────── */
     useEffect(() => {
-        const audio = audioRef.current;
-        if (!audio) return;
-
         if (!paused) {
-            // If there's a pending URL (was deferred while paused), load it now
             if (pendingUrlRef.current) {
+                // Load the URL that was deferred while paused
                 const url = pendingUrlRef.current;
                 pendingUrlRef.current = undefined;
                 audioFailedRef.current = false;
+                const audio = audioRef.current!;
                 audio.src = url;
                 audio.load();
                 audio.play().catch(e => {
                     console.warn("[AnimationEngine] Deferred play failed:", e.message);
                 });
-            } else if (audio.paused && !audio.ended && audio.src) {
-                audio.play().catch(() => { });
+            } else {
+                const audio = audioRef.current;
+                if (audio?.paused && !audio.ended && audio.src) {
+                    audio.play().catch(() => { });
+                }
             }
         } else {
-            audio.pause();
+            audioRef.current?.pause();
         }
     }, [paused]);
 
