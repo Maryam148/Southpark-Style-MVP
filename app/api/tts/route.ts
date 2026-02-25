@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
     return new NextResponse(buffer, {
         headers: {
             "Content-Type": "audio/mpeg",
-            "Cache-Control": "public, max-age=86400",
+            // Browser caches 24h; Vercel CDN caches 7 days, serves stale while revalidating
+            "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800",
         },
     });
 }

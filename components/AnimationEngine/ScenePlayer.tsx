@@ -28,7 +28,8 @@ export default function ScenePlayer({
   const [sceneInitialTime, setSceneInitialTime] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(true);
+  const [hasStarted, setHasStarted] = useState(false);
   const [done, setDone] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -114,7 +115,10 @@ export default function ScenePlayer({
     }
   }, [currentIdx, scenes.length, totalDuration, onEpisodeComplete]);
 
-  const togglePlay = () => setIsPaused((p) => !p);
+  const togglePlay = () => {
+    if (!hasStarted) setHasStarted(true);
+    setIsPaused((p) => !p);
+  };
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
@@ -131,6 +135,7 @@ export default function ScenePlayer({
     setCurrentTime(0);
     setDone(false);
     setIsPaused(false);
+    setHasStarted(true);
   };
 
   const triggerControls = () => {
@@ -200,6 +205,19 @@ export default function ScenePlayer({
             <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Replay Episode
           </button>
+        </div>
+      )}
+
+      {/* Initial Play Overlay — requires user gesture to unlock audio */}
+      {!hasStarted && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+          <button
+            onClick={togglePlay}
+            className="flex h-20 w-20 items-center justify-center rounded-full bg-violet-primary shadow-lg transition-transform duration-150 hover:scale-105 hover:bg-violet-hover"
+          >
+            <Play className="ml-1 h-9 w-9 text-white" />
+          </button>
+          <p className="mt-4 text-sm font-medium text-white/70">Click to play</p>
         </div>
       )}
 

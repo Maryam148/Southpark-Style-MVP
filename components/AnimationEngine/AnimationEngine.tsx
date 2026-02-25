@@ -361,6 +361,7 @@ export default function AnimationEngine({
     /* ── Persistent Audio ───────────────────────────────── */
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const audioFailedRef = useRef(false);
+    const pendingUrlRef = useRef<string | undefined>(undefined);
     useEffect(() => {
         const audio = new Audio();
         audio.crossOrigin = "anonymous";
@@ -393,13 +394,21 @@ export default function AnimationEngine({
         }
 
         audioFailedRef.current = false;
+
+        // If paused, defer loading until user unpauses (saves API calls)
+        if (paused) {
+            pendingUrlRef.current = url;
+            return;
+        }
+
+        pendingUrlRef.current = undefined;
         console.log(`[AnimationEngine] Playing (${queueIdx}): ${url}`);
         audio.src = url;
         audio.load();
 
         if (offsetMs > 0) {
             const seek = () => {
-                if (audio.readyState >= 1) { // HAVE_METADATA
+                if (audio.readyState >= 1) {
                     audio.currentTime = offsetMs / 1000;
                     audio.removeEventListener("loadedmetadata", seek);
                 }
@@ -408,11 +417,9 @@ export default function AnimationEngine({
             seek();
         }
 
-        if (!paused) {
-            audio.play().catch(e => {
-                console.warn("[AnimationEngine] Play failed (possible autoplay block):", e.message);
-            });
-        }
+        audio.play().catch(e => {
+            console.warn("[AnimationEngine] Play failed:", e.message);
+        });
     }, [paused]);
 
     /* ── Main render loop ─────────────────────────────────── */
@@ -574,12 +581,25 @@ export default function AnimationEngine({
 
     /* ── Manage play/pause state explicitly ──────────────── */
     useEffect(() => {
-        if (!paused && audioRef.current?.paused && !audioRef.current.ended) {
-            audioRef.current.play().catch(() => {
-                // If it fails, we'll try again on next tick or wait for user interaction
-            });
-        } else if (paused && !audioRef.current?.paused) {
-            audioRef.current?.pause();
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        if (!paused) {
+            // If there's a pending URL (was deferred while paused), load it now
+            if (pendingUrlRef.current) {
+                const url = pendingUrlRef.current;
+                pendingUrlRef.current = undefined;
+                audioFailedRef.current = false;
+                audio.src = url;
+                audio.load();
+                audio.play().catch(e => {
+                    console.warn("[AnimationEngine] Deferred play failed:", e.message);
+                });
+            } else if (audio.paused && !audio.ended && audio.src) {
+                audio.play().catch(() => { });
+            }
+        } else {
+            audio.pause();
         }
     }, [paused]);
 
