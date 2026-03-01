@@ -1,8 +1,77 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabaseServer";
+import { createAdminClient } from "@/lib/supabaseAdmin";
 import type { ScriptJSON } from "@/types";
 import type { SceneData, SceneCharacter } from "@/components/AnimationEngine/types";
-import { VOICE_MAP, DEFAULT_VOICE_ID } from "@/lib/tts";
+import { VOICE_MAP, DEFAULT_VOICE_ID, synthesizeSpeech } from "@/lib/tts";
+
+export const maxDuration = 300;
+
+/* ──────────────────────────────────────────────────────────
+   Generate all TTS audio in parallel and upload to Supabase Storage.
+   Returns a map of { storageKey → publicUrl }.
+   Falls back to the /api/tts proxy URL on any individual failure so
+   the episode still plays — it just gets on-demand audio for that line.
+   ────────────────────────────────────────────────────────── */
+interface TtsJob {
+    key: string;       // unique path within the bucket, e.g. "tts/{ep}/{i}.mp3"
+    text: string;
+    voice: string;
+    fallbackUrl: string;
+}
+
+/** Run async tasks with at most `concurrency` in-flight at once. */
+async function asyncPool<T>(
+    tasks: (() => Promise<T>)[],
+    concurrency: number,
+): Promise<T[]> {
+    const results: T[] = new Array(tasks.length);
+    const executing = new Set<Promise<void>>();
+    for (let i = 0; i < tasks.length; i++) {
+        const idx = i;
+        const run = Promise.resolve().then(async () => {
+            results[idx] = await tasks[idx]();
+        }).finally(() => executing.delete(run));
+        executing.add(run);
+        if (executing.size >= concurrency) await Promise.race(executing);
+    }
+    await Promise.all(executing);
+    return results;
+}
+
+async function generateAllAudio(jobs: TtsJob[]): Promise<Map<string, string>> {
+    const admin = createAdminClient();
+    const results = new Map<string, string>();
+
+    // Ensure the audio bucket exists (no-op if already created)
+    await admin.storage.createBucket("audio", { public: true }).catch(() => { });
+
+    // 10 concurrent TTS requests — enough to be fast, won't hammer OpenAI rate limits
+    await asyncPool(
+        jobs.map(({ key, text, voice, fallbackUrl }) => async () => {
+            try {
+                const buffer = await synthesizeSpeech(text, voice);
+                const { error: uploadError } = await admin.storage
+                    .from("audio")
+                    .upload(key, buffer, {
+                        contentType: "audio/mpeg",
+                        upsert: true,
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const { data } = admin.storage.from("audio").getPublicUrl(key);
+                results.set(key, data.publicUrl);
+            } catch (err) {
+                console.error(`[Generate] TTS upload failed for ${key}:`, err);
+                results.set(key, fallbackUrl);
+            }
+        }),
+        10,
+    );
+
+    return results;
+}
 
 export async function POST(req: NextRequest) {
     try {
@@ -42,6 +111,15 @@ export async function POST(req: NextRequest) {
             console.error("[Generate] Asset fetch error:", assetError);
         }
 
+        // Idempotency: if already completed return early
+        if (episode.status === "completed" && (episode.metadata as Record<string, unknown>)?.playable) {
+            return NextResponse.json({
+                episode_id,
+                status: "completed",
+                playable: (episode.metadata as Record<string, unknown>).playable,
+            });
+        }
+
         if (!episode.script) {
             return NextResponse.json({ error: "Episode has no script JSON" }, { status: 400 });
         }
@@ -63,10 +141,8 @@ export async function POST(req: NextRequest) {
         const resolve = (name: string | undefined): string =>
             name ? assetMap.get(name.toLowerCase()) || "" : "";
 
-        /* ── 4. Build resolved SceneData[] (Clean URLs only) ── */
-        // We handle dialogue synthesis separately to keep this clean
+        /* ── 4. Build resolved SceneData[] ──────────────────── */
         const resolvedScenes: SceneData[] = scriptJSON.scenes.map((scene) => {
-            // Deduplicate characters by name to prevent double-speaking bugs
             const uniqueChars = scene.characters.filter((char, index, self) =>
                 index === self.findIndex((c) => c.name.toLowerCase() === char.name.toLowerCase())
             );
@@ -103,18 +179,56 @@ export async function POST(req: NextRequest) {
             };
         });
 
-        /* ── 5. Assign on-demand TTS audio URLs ── */
-        console.log("[Generate] Assigning TTS audio URLs...");
+        /* ── 5. Pre-generate ALL TTS audio in parallel ──────────
+           Collect every dialogue line as a TtsJob, run them all at once,
+           then assign the resulting URLs back into the scene data.
+           Each file is stored at  audio/tts/{episode_id}/{globalLineIndex}.mp3
+           so re-generating the same episode overwrites previous audio (upsert).
+        ─────────────────────────────────────────────────────── */
+        console.log("[Generate] Pre-generating TTS audio...");
+
+        const jobs: TtsJob[] = [];
+        let globalIdx = 0;
+
         for (const scene of resolvedScenes) {
             for (const char of scene.characters) {
-                const voiceId = VOICE_MAP[char.name.toLowerCase()] || DEFAULT_VOICE_ID;
+                const voice = VOICE_MAP[char.name.toLowerCase()] || DEFAULT_VOICE_ID;
                 for (const dl of char.dialogue) {
-                    const params = new URLSearchParams({ text: dl.line, voice: voiceId });
-                    dl.audio = `/api/tts?${params.toString()}`;
+                    if (!dl.line || dl.line.trim() === "" || /^\[pause\]$/i.test(dl.line.trim())) {
+                        globalIdx++;
+                        continue;
+                    }
+                    const key = `tts/${episode_id}/${globalIdx}.mp3`;
+                    const fallbackParams = new URLSearchParams({ text: dl.line, voice });
+                    jobs.push({
+                        key,
+                        text: dl.line,
+                        voice,
+                        fallbackUrl: `/api/tts?${fallbackParams.toString()}`,
+                    });
+                    globalIdx++;
                 }
             }
         }
-        console.log("[Generate] TTS URLs assigned.");
+
+        const audioUrls = await generateAllAudio(jobs);
+        console.log(`[Generate] TTS done — ${jobs.length} lines generated.`);
+
+        // Assign the URLs back
+        globalIdx = 0;
+        for (const scene of resolvedScenes) {
+            for (const char of scene.characters) {
+                for (const dl of char.dialogue) {
+                    if (!dl.line || dl.line.trim() === "" || /^\[pause\]$/i.test(dl.line.trim())) {
+                        globalIdx++;
+                        continue;
+                    }
+                    const key = `tts/${episode_id}/${globalIdx}.mp3`;
+                    dl.audio = audioUrls.get(key);
+                    globalIdx++;
+                }
+            }
+        }
 
         const playableEpisode = {
             episodeTitle: scriptJSON.episodeTitle,

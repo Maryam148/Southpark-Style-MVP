@@ -32,12 +32,14 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: err }, { status: response.status });
         }
 
-        const buffer = await response.arrayBuffer();
-
-        return new NextResponse(buffer, {
+        // Stream the response body directly — don't buffer the whole clip before sending.
+        // This lets the browser start buffering/playing as soon as the first bytes arrive
+        // (~200-400ms) instead of waiting for the full audio to generate (2-3s).
+        return new NextResponse(response.body, {
             headers: {
                 "Content-Type": "audio/mpeg",
                 "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800",
+                "Transfer-Encoding": "chunked",
             },
         });
     } catch (err) {

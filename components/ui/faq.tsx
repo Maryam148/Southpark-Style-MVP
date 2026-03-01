@@ -22,7 +22,7 @@ const FAQS = [
     },
     {
         question: "What powers the voice synthesis?",
-        answer: "We use ElevenLabs for AI voice generation, producing expressive and unique voices for each character. Lip-sync timing is automatically matched to dialogue duration so everything stays in sync.",
+        answer: "SkunkStudio runs on a multi-provider AI voice stack optimized for animated character performance. Our engine dynamically processes dialogue for natural timing, expressive delivery, and automatic lip-sync alignment.",
     },
     {
         question: "How can I get support if I have issues?",

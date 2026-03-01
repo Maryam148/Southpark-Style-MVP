@@ -4,35 +4,35 @@
 
 @layer base {
   :root {
-    --background: 240 6% 4%;
-    --foreground: 0 0% 93%;
-    --card: 240 10% 5.5%;
-    --card-foreground: 0 0% 93%;
-    --popover: 240 10% 5.5%;
-    --popover-foreground: 0 0% 93%;
+    --background: 0 0% 3%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 95%;
     --primary: 0 84% 60%;
-    --surface-0: 240 6% 4%;
-    --surface-1: 240 6% 8%;
-    --surface-2: 240 6% 12%;
-    --surface-3: 240 6% 16%;
+    --surface-0: 0 0% 3%;
+    --surface-1: 0 0% 7%;
+    --surface-2: 0 0% 11%;
+    --surface-3: 0 0% 16%;
 
-    --sk-border: 240 8% 14%;
-    --sk-border-hover: 240 8% 20%;
+    --sk-border: 0 0% 15%;
+    --sk-border-hover: 0 0% 22%;
 
-    --muted-text-1: 240 5% 65%;
-    --muted-text-2: 240 5% 50%;
-    --muted-text-3: 240 5% 35%;
+    --muted-text-1: 0 0% 65%;
+    --muted-text-2: 0 0% 48%;
+    --muted-text-3: 0 0% 33%;
 
     --violet-primary: 0 84% 60%;
     --violet-hover: 0 84% 68%;
 
     /* ── Landing cinematic tokens ────────────── */
-    --cinema-black: 220 20% 2%;
-    --cinema-dark: 220 16% 6%;
-    --cinema-card: 220 16% 9%;
-    --cinema-card-hover: 220 16% 12%;
-    --cinema-border: 220 14% 14%;
-    --cinema-border-hover: 220 14% 22%;
+    --cinema-black: 0 0% 2%;
+    --cinema-dark: 0 0% 6%;
+    --cinema-card: 0 0% 9%;
+    --cinema-card-hover: 0 0% 12%;
+    --cinema-border: 0 0% 14%;
+    --cinema-border-hover: 0 0% 22%;
 
     --gold: 36 100% 50%;
     --gold-light: 42 100% 65%;
@@ -62,12 +62,73 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2a36;
+  background: #2a2a2a;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3a48;
+  background: #3a3a3a;
+}
+
+/* ── Video player scrubber ───────────────────── */
+.player-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 9999px;
+  outline: none;
+  transition: height 0.15s ease;
+  cursor: pointer;
+}
+
+.player-scrubber:hover {
+  height: 6px;
+}
+
+.player-scrubber:active {
+  height: 6px;
+}
+
+/* Thumb — Webkit */
+.player-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.player-scrubber:hover::-webkit-slider-thumb,
+.player-scrubber:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+.player-scrubber:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.3);
+}
+
+/* Thumb — Firefox */
+.player-scrubber::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  opacity: 0;
+}
+
+.player-scrubber:hover::-moz-range-thumb {
+  opacity: 1;
 }
 
 /* ── Focus ring ──────────────────────────────── */
@@ -90,6 +151,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -98,9 +160,19 @@
 
 /* ── Character face hover-blink ─────────────── */
 @keyframes blink {
-  0%, 100% { transform: scaleY(1); }
-  40% { transform: scaleY(0.05); }
-  60% { transform: scaleY(0.05); }
+
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+
+  40% {
+    transform: scaleY(0.05);
+  }
+
+  60% {
+    transform: scaleY(0.05);
+  }
 }
 
 .character-face .left-eye {

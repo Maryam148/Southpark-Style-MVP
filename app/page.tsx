@@ -108,7 +108,7 @@ export default function Home() {
                   </div>
                   <div className="rounded-lg bg-surface-0/60 backdrop-blur-sm p-3 text-[0.6rem] leading-relaxed text-white/60">
                     Generating unique voices for each character using
-                    ElevenLabs synthesis. Lip-sync timing is automatically
+                    OpenAI TTS-1 synthesis. Lip-sync timing is automatically
                     matched to dialogue duration...
                   </div>
                   {/* Playback controls mockup */}

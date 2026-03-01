@@ -20,6 +20,7 @@ export function WorkflowPlayer() {
             controls={false}
             clickToPlay={false}
             spaceKeyToPlayOrPause={false}
+            acknowledgeRemotionLicense
         />
     );
 }

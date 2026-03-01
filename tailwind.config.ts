@@ -93,6 +93,9 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      fontFamily: {
+        "space-grotesk": ["var(--font-space-grotesk)", "sans-serif"],
+      },
       letterSpacing: {
         tighter: "-0.03em",
       },
