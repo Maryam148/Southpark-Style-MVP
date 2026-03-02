@@ -9,6 +9,8 @@
  * No AWS Lambda or credit card needed.
  */
 
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
 import { computeEpisodeTiming } from "@/lib/remotion/computeTimings";
 import { createServerSupabaseClient } from "@/lib/supabaseServer";
