@@ -390,7 +390,10 @@ export default function AnimationEngine({
         const makeAudio = () => {
             const a = new Audio();
             a.preload = "auto";
-            a.crossOrigin = "anonymous"; // Required for createMediaElementSource
+            // crossOrigin intentionally omitted — setting it requires Supabase Storage
+            // to return matching CORS headers, which varies by browser/network and
+            // causes audio to silently fail when CORS is mismatched. The export
+            // AudioContext connection (connectToExport) handles the SecurityError gracefully.
             return a;
         };
         const audio = makeAudio();
