@@ -154,8 +154,12 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
 
         useImperativeHandle(ref, () => ({
             unlockAudio: () => {
-                if (audioRef.current) audioRef.current.play().catch(() => { });
-                if (preloadRef.current) preloadRef.current.play().catch(() => { });
+                if (audioRef.current && audioRef.current.src) {
+                    audioRef.current.play().catch(() => { });
+                }
+                if (preloadRef.current && preloadRef.current.src) {
+                    preloadRef.current.play().catch(() => { });
+                }
             }
         }));
 
