@@ -168,6 +168,14 @@ export default function AnimationEngine({
     // Track MediaElementSourceNodes — can only create one per element
     const sourceNodeMapRef = useRef<WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>>(new WeakMap());
 
+    // Ref wrappers for export props so connectToExport stays stable ([] deps).
+    // Without this, connectToExport would re-create whenever exportAudioCtx changes,
+    // causing useEffect([connectToExport]) to re-run and destroy live audio elements.
+    const exportAudioCtxRef = useRef(exportAudioCtx);
+    exportAudioCtxRef.current = exportAudioCtx;
+    const exportAudioDestRef = useRef(exportAudioDest);
+    exportAudioDestRef.current = exportAudioDest;
+
     /* ── Clear timers ────────────────────────────────────── */
     const clearSafety = useCallback(() => {
         if (safetyTimerRef.current) { clearTimeout(safetyTimerRef.current); safetyTimerRef.current = null; }
@@ -195,18 +203,24 @@ export default function AnimationEngine({
      * This can only be called ONCE per audio element (browser constraint).
      */
     const connectToExport = useCallback((el: HTMLAudioElement) => {
-        if (!exportAudioCtx || !exportAudioDest) return;
+        // Read from refs so this callback is stable ([] deps).
+        // If we closed over the props instead, any change to exportAudioCtx/Dest
+        // would recreate this callback → re-run useEffect([connectToExport]) →
+        // destroy active audio elements mid-playback → silent audio.
+        const ctx = exportAudioCtxRef.current;
+        const dest = exportAudioDestRef.current;
+        if (!ctx || !dest) return;
         if (sourceNodeMapRef.current.has(el)) return; // already connected
 
         try {
-            const source = exportAudioCtx.createMediaElementSource(el);
-            source.connect(exportAudioDest);    // → recorder
-            source.connect(exportAudioCtx.destination); // → speakers
+            const source = ctx.createMediaElementSource(el);
+            source.connect(dest);           // → recorder
+            source.connect(ctx.destination); // → speakers
             sourceNodeMapRef.current.set(el, source);
         } catch (e) {
             console.warn("[AnimationEngine] Could not connect audio to export:", e);
         }
-    }, [exportAudioCtx, exportAudioDest]);
+    }, []); // stable — ctx/dest always read from refs above
 
     /* ── Advance to next dialogue line ───────────────────── */
     const advanceFnRef = useRef<() => void>(() => { });
