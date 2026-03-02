@@ -158,20 +158,7 @@ export async function POST(req: NextRequest) {
         }
 
         /* ── 2b. Enforce plan-based monthly minute limits ───── */
-        const PLAN_LIMITS_SEC: Record<string, number> = {
-            free: 60,          // 1 minute
-            pro: 600,          // 10 minutes
-            creator_plus: 1800, // 30 minutes
-        };
-
-        const userPlan = (userProfile?.plan as string) ?? "free";
-        const limitSec = PLAN_LIMITS_SEC[userPlan] ?? PLAN_LIMITS_SEC.free;
-        const usedSec = (monthlyEpisodes ?? []).reduce(
-            (sum, e) => sum + (e.duration_sec ?? 0),
-            0
-        );
-
-        // Estimate episode duration at ~130 words per minute
+        // Estimate episode duration at ~130 words per minute (still needed for duration_sec)
         const allWords = scriptJSON.scenes
             .flatMap((s) => s.characters.flatMap((c) => c.dialogue.map((d) => d.line)))
             .join(" ")
@@ -179,16 +166,23 @@ export async function POST(req: NextRequest) {
             .filter(Boolean);
         const estimatedSec = Math.ceil(allWords.length / (130 / 60));
 
-        if (usedSec + estimatedSec > limitSec) {
-            const usedMin = (usedSec / 60).toFixed(1);
-            const limitMin = limitSec / 60;
-            return NextResponse.json(
-                {
-                    error: `Monthly limit reached. You've used ${usedMin} of your ${limitMin}-minute ${userPlan} allowance. Upgrade to generate more.`,
-                },
-                { status: 403 }
-            );
-        }
+        // TEMPORARILY DISABLED for client testing — re-enable before launch
+        // const PLAN_LIMITS_SEC: Record<string, number> = {
+        //     free: 60,          // 1 minute
+        //     pro: 600,          // 10 minutes
+        //     creator_plus: 1800, // 30 minutes
+        // };
+        // const userPlan = (userProfile?.plan as string) ?? "free";
+        // const limitSec = PLAN_LIMITS_SEC[userPlan] ?? PLAN_LIMITS_SEC.free;
+        // const usedSec = (monthlyEpisodes ?? []).reduce((sum, e) => sum + (e.duration_sec ?? 0), 0);
+        // if (usedSec + estimatedSec > limitSec) {
+        //     const usedMin = (usedSec / 60).toFixed(1);
+        //     const limitMin = limitSec / 60;
+        //     return NextResponse.json(
+        //         { error: `Monthly limit reached. You've used ${usedMin} of your ${limitMin}-minute ${userPlan} allowance. Upgrade to generate more.` },
+        //         { status: 403 }
+        //     );
+        // }
 
         /* ── 3. Build Asset Map ─────────────────────────────── */
         const assetMap = new Map<string, string>();

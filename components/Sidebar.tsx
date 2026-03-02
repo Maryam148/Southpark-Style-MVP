@@ -109,7 +109,7 @@ export default function Sidebar() {
           Settings
         </Link>
       </div>
-      <UpgradeBanner />
+      {/* <UpgradeBanner /> — disabled for client testing, re-enable before launch */}
     </aside>
   );
 }
@@ -156,7 +156,7 @@ export function MobileNav() {
                 Settings
               </Link>
             </div>
-            <UpgradeBanner />
+            {/* <UpgradeBanner /> — disabled for client testing, re-enable before launch */}
           </aside>
         </div>
       )}
