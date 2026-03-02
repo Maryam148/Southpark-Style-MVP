@@ -397,13 +397,16 @@ export default function AnimationEngine({
 
     /* ── Create audio elements once ──────────────────────── */
     useEffect(() => {
+        // crossOrigin is only set when an AudioContext is active (i.e. during export).
+        // createMediaElementSource() requires it for cross-origin audio; without it the
+        // browser throws a SecurityError and audio isn't captured.
+        // For normal playback we leave it unset: some browsers/networks fail the CORS
+        // check silently and produce no audio, so we only pay the cost when we need it.
+        const withCrossOrigin = !!exportAudioCtxRef.current;
         const makeAudio = () => {
             const a = new Audio();
             a.preload = "auto";
-            // crossOrigin intentionally omitted — setting it requires Supabase Storage
-            // to return matching CORS headers, which varies by browser/network and
-            // causes audio to silently fail when CORS is mismatched. The export
-            // AudioContext connection (connectToExport) handles the SecurityError gracefully.
+            if (withCrossOrigin) a.crossOrigin = "anonymous";
             return a;
         };
         const audio = makeAudio();
