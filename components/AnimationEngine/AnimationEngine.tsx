@@ -415,7 +415,8 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
                         clearTimeout(safetyTimerRef.current);
                         safetyTimerRef.current = null;
                     }
-                    const durationMs = isFinite(target.duration) && target.duration > 0
+                    const validDur = typeof target.duration === "number" && !isNaN(target.duration) && isFinite(target.duration) && target.duration > 0;
+                    const durationMs = validDur
                         ? target.duration * 1000
                         : text.trim().split(/\s+/).length * 400;
                     safetyTimerRef.current = setTimeout(() => {
@@ -423,7 +424,12 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
                         console.warn("[AnimationEngine] Safety timeout — advancing");
                         advanceFnRef.current();
                     }, durationMs + 3000);
-                }).catch((e) => {
+                }).catch((e: Error) => {
+                    if (e.name === "AbortError") {
+                        // Safari occasionally aborts the play promise internally if a new
+                        // source is loading, but the audio still plays or the scene correctly interrupted it.
+                        return;
+                    }
                     console.warn("[AnimationEngine] play() failed:", e.message);
                     if (advanceGenRef.current !== gen) return;
                     // Play failed — still animate mouth for the word-count fallback duration
