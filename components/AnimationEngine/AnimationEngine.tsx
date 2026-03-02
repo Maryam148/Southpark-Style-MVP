@@ -3,6 +3,7 @@
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import type { SceneData } from "./types";
 import { getCharPlaceholder } from "@/lib/placeholderAssets";
+import type { ExportAudioPlan } from "@/lib/exportAudio";
 import {
     CANVAS_W, CANVAS_H,
     drawPlaceholderBg, drawCharacter, drawSubtitle,
@@ -117,6 +118,7 @@ interface AnimationEngineProps {
      */
     exportAudioCtx?: AudioContext;
     exportAudioDest?: MediaStreamAudioDestinationNode;
+    exportAudioPlan?: ExportAudioPlan;
     /**
      * Persistent canvas owned by ScenePlayer. Every rendered frame is mirrored
      * here so MediaRecorder can capture the full episode uninterrupted across
@@ -142,6 +144,7 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
         initialTime: _initialTime = 0,
         exportAudioCtx,
         exportAudioDest,
+        exportAudioPlan,
         mirrorCanvasRef,
     }, ref) {
         const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -196,6 +199,8 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
         exportAudioCtxRef.current = exportAudioCtx;
         const exportAudioDestRef = useRef(exportAudioDest);
         exportAudioDestRef.current = exportAudioDest;
+        const exportAudioPlanRef = useRef(exportAudioPlan);
+        exportAudioPlanRef.current = exportAudioPlan;
 
         /* ── Clear timers ────────────────────────────────────── */
         const clearSafety = useCallback(() => {
@@ -325,6 +330,20 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
                     if (advanceGenRef.current !== gen) return;
                     advanceFnRef.current();
                 }, dur + LINE_GAP_MS);
+                return;
+            }
+
+            const plan = exportAudioPlanRef.current;
+            if (plan && url) {
+                plan.playClip(url);
+                const buffer = plan.bufferMap.get(url);
+                const durationMs = buffer ? buffer.duration * 1000 : text.trim().split(/\s+/).length * 400;
+
+                if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+                safetyTimerRef.current = setTimeout(() => {
+                    if (advanceGenRef.current !== gen) return;
+                    advanceFnRef.current();
+                }, durationMs + LINE_GAP_MS);
                 return;
             }
 

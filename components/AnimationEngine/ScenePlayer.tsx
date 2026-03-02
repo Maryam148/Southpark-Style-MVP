@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo, forwardRef, useImper
 import AnimationEngine, { type AnimationEngineHandle } from "./AnimationEngine";
 import type { SceneData } from "./types";
 import { CANVAS_W, CANVAS_H } from "./drawHelpers";
+import type { ExportAudioPlan } from "@/lib/exportAudio";
 import {
   Play, Pause, SkipBack, SkipForward,
   Maximize, Minimize, RotateCcw, Volume2, VolumeX, Film,
@@ -51,13 +52,14 @@ interface ScenePlayerProps {
   /** Export audio routing — same audio that drives animation is captured by recorder */
   exportAudioCtx?: AudioContext;
   exportAudioDest?: MediaStreamAudioDestinationNode;
+  exportAudioPlan?: ExportAudioPlan;
 }
 
 /* ─────────────────────────────────────────────────────────
    Component
    ───────────────────────────────────────────────────────── */
 const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
-  function ScenePlayer({ scenes, onEpisodeComplete, forceMuted, exportAudioCtx, exportAudioDest }, ref) {
+  function ScenePlayer({ scenes, onEpisodeComplete, forceMuted, exportAudioCtx, exportAudioDest, exportAudioPlan }, ref) {
     /* ── Scene / playback state (React-managed) ── */
     const [currentIdx, setCurrentIdx] = useState(0);
     const [resetKey, setResetKey] = useState(0);
@@ -349,6 +351,7 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
           muted={muted || !!forceMuted}
           exportAudioCtx={exportAudioCtx}
           exportAudioDest={exportAudioDest}
+          exportAudioPlan={exportAudioPlan}
           mirrorCanvasRef={persistentCanvasRef}
         />
 

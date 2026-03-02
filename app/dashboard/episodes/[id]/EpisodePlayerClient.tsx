@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import type { SceneData } from "@/components/AnimationEngine/types";
 import ScenePlayer, { type ScenePlayerHandle } from "@/components/AnimationEngine/ScenePlayer";
+import { buildExportAudio, type ExportAudioPlan } from "@/lib/exportAudio";
 import {
   AlertTriangle, ArrowLeft, Link2, Download, Lock,
   Loader2, CheckCircle2,
@@ -21,7 +22,7 @@ interface EpisodePlayerClientProps {
   error?: string | null;
 }
 
-type ExportPhase = "idle" | "recording" | "done";
+type ExportPhase = "idle" | "preparing" | "recording" | "done";
 
 export default function EpisodePlayerClient({
   episodeId: _episodeId, title, createdAt, playable, error,
@@ -37,6 +38,7 @@ export default function EpisodePlayerClient({
 
   const [exportAudioCtx, setExportAudioCtx] = useState<AudioContext | undefined>(undefined);
   const [exportAudioDest, setExportAudioDest] = useState<MediaStreamAudioDestinationNode | undefined>(undefined);
+  const [exportAudioPlan, setExportAudioPlan] = useState<ExportAudioPlan | undefined>(undefined);
   const exportRecorderRef = useRef<MediaRecorder | null>(null);
 
   useEffect(() => { setIsMounted(true); }, []);
@@ -102,6 +104,19 @@ export default function EpisodePlayerClient({
         console.warn("[Export] AudioContext unavailable — exporting video only:", e);
       }
 
+      // 2.5 PREPARE AUDIO EXPORT PLAN
+      let plan: ExportAudioPlan | undefined;
+      if (audioCtx && audioDest && playable) {
+        setPhase("preparing");
+        plan = await buildExportAudio(playable.scenes, audioCtx, audioDest, (fetched, total) => {
+          setProgress(Math.round((fetched / total) * 100));
+        });
+        setExportAudioPlan(plan);
+      }
+
+      setPhase("recording");
+      setProgress(0);
+
       // 3. Combine video track + audio track into one stream
       const tracks: MediaStreamTrack[] = [...videoStream.getVideoTracks()];
       if (audioDest) tracks.push(...audioDest.stream.getAudioTracks());
@@ -145,6 +160,7 @@ export default function EpisodePlayerClient({
         audioCtx?.close().catch(() => { });
         setExportAudioCtx(undefined);
         setExportAudioDest(undefined);
+        setExportAudioPlan(undefined);
       };
 
       recorder.onerror = () => {
@@ -154,6 +170,7 @@ export default function EpisodePlayerClient({
         audioCtx?.close().catch(() => { });
         setExportAudioCtx(undefined);
         setExportAudioDest(undefined);
+        setExportAudioPlan(undefined);
         toast({ variant: "destructive", title: "Export failed", description: "Recording error. Try again." });
       };
 
@@ -174,6 +191,7 @@ export default function EpisodePlayerClient({
       setProgress(0);
       setPhase("idle");
       exportRecorderRef.current = null;
+      setExportAudioPlan(undefined);
       toast({
         variant: "destructive",
         title: "Export failed",
@@ -230,6 +248,14 @@ export default function EpisodePlayerClient({
               Export Video
             </button>
           )}
+          {phase === "preparing" && (
+            <button
+              disabled
+              className="inline-flex items-center gap-1.5 rounded-md border border-violet-primary/40 bg-violet-primary/10 px-3 py-2 text-sm font-medium text-violet-300"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" /> Preparing Audio{progress ? ` ${progress}%` : "…"}
+            </button>
+          )}
           {phase === "recording" && (
             <button
               disabled
@@ -254,6 +280,7 @@ export default function EpisodePlayerClient({
             scenes={playable.scenes}
             exportAudioCtx={exportAudioCtx}
             exportAudioDest={exportAudioDest}
+            exportAudioPlan={exportAudioPlan}
             onEpisodeComplete={onEpisodeComplete}
           />
         )}
