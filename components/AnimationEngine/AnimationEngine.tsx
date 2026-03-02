@@ -251,7 +251,8 @@ export default function AnimationEngine({
 
         const entry = state.globalDialogueQueue[state.currentQueueIdx];
         const cs = state.characters[entry.charIdx];
-        if (cs) cs.isTalking = true;
+        // isTalking is set via the onStarted callback when audio actually begins,
+        // so the mouth animation starts in sync with the audio, not before it.
 
         const scene = sceneDataRef.current;
         const line = scene.characters[entry.originalCharIdx]?.dialogue[entry.lineIdx];
@@ -266,7 +267,7 @@ export default function AnimationEngine({
             return;
         }
 
-        playLine(line.audio, line.line);
+        playLine(line.audio, line.line, () => { if (cs) cs.isTalking = true; });
 
         const nextIdx = state.currentQueueIdx + 1;
         if (nextIdx < state.globalDialogueQueue.length) {
@@ -285,13 +286,18 @@ export default function AnimationEngine({
     advanceFnRef.current = advance;
 
     /* ── Play a single line ──────────────────────────────── */
-    const playLine = useCallback((url: string | undefined, text: string) => {
+    // onStarted is called the moment audio actually begins playing (or immediately
+    // for the no-audio fallback). We use this to start the mouth animation in sync
+    // with the audio rather than starting it the moment advance() is called.
+    const playLine = useCallback((url: string | undefined, text: string, onStarted?: () => void) => {
         const audio = audioRef.current;
         if (!audio) return;
 
         const gen = ++advanceGenRef.current;
 
         if (!url) {
+            // No audio — start talking animation immediately (word-count timing)
+            onStarted?.();
             const wordCount = text.trim().split(/\s+/).length;
             const dur = Math.max(NO_AUDIO_LINE_MS, wordCount * 350);
             safetyTimerRef.current = setTimeout(() => {
@@ -344,6 +350,8 @@ export default function AnimationEngine({
             if (advanceGenRef.current !== gen) return;
 
             target.play().then(() => {
+                // Audio is now playing — start mouth animation in sync
+                onStarted?.();
                 if (safetyTimerRef.current) {
                     clearTimeout(safetyTimerRef.current);
                     safetyTimerRef.current = null;
@@ -359,6 +367,8 @@ export default function AnimationEngine({
             }).catch((e) => {
                 console.warn("[AnimationEngine] play() failed:", e.message);
                 if (advanceGenRef.current !== gen) return;
+                // Play failed — still animate mouth for the word-count fallback duration
+                onStarted?.();
                 const wc = text.trim().split(/\s+/).length;
                 safetyTimerRef.current = setTimeout(() => {
                     if (advanceGenRef.current !== gen) return;
@@ -426,7 +436,6 @@ export default function AnimationEngine({
                 if (!entry) { state.done = true; onCompleteRef.current?.(); return; }
 
                 const cs = state.characters[entry.charIdx];
-                if (cs) cs.isTalking = true;
 
                 const line = sceneData.characters[entry.originalCharIdx]?.dialogue[entry.lineIdx];
 
@@ -441,7 +450,7 @@ export default function AnimationEngine({
                     if (nl2?.audio) prefetchVoice(nl2.audio);
                 }
 
-                if (line) playLine(line.audio, line.line ?? "");
+                if (line) playLine(line.audio, line.line ?? "", () => { if (cs) cs.isTalking = true; });
             } else {
                 const audio = audioRef.current;
                 if (audio && audio.src && audio.paused && !audio.ended) {
@@ -541,7 +550,6 @@ export default function AnimationEngine({
 
             const entry = state.globalDialogueQueue[0];
             const cs = state.characters[entry.charIdx];
-            if (cs) cs.isTalking = true;
 
             const line = sceneData.characters[entry.originalCharIdx]?.dialogue[entry.lineIdx];
 
@@ -556,7 +564,7 @@ export default function AnimationEngine({
                 if (nl2?.audio) prefetchVoice(nl2.audio);
             }
 
-            if (line) playLine(line.audio, line.line ?? "");
+            if (line) playLine(line.audio, line.line ?? "", () => { if (cs) cs.isTalking = true; });
         }
 
         return () => { cancelAnimationFrame(rafRef.current); clearSafety(); };
