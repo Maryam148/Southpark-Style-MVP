@@ -190,6 +190,19 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
        Play / Pause
        ───────────────────────────────────────────────────────── */
     const togglePlay = useCallback(() => {
+      // iOS WebKit (used by ALL browsers on iPhone — Safari, Chrome, Firefox) blocks
+      // audio.play() when called from async contexts like useEffect. The browser only
+      // allows play() that is triggered synchronously within a user-gesture handler.
+      // Playing a tiny silent clip HERE, in this gesture handler, unlocks the page's
+      // audio subsystem for the session — all subsequent async play() calls then work.
+      if (!hasStarted) {
+        try {
+          new Audio(
+            "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
+          ).play().catch(() => {});
+        } catch (_) {}
+      }
+
       const nowPaused = isPausedRef.current;
       if (!hasStarted) setHasStarted(true);
       if (nowPaused) {
