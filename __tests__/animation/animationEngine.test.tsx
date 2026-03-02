@@ -22,12 +22,12 @@ function makeCharacter(
         name,
         position,
         assets: {
-            body: null,
-            head: null,
-            eyes: null,
+            body: "",
+            head: "",
+            eyes: "",
             mouths: {
-                neutral: null,
-                talking: null,
+                neutral: "",
+                talking: "",
             },
         },
         dialogue: dialogueLines.map((line) => ({
@@ -60,16 +60,16 @@ describe("AnimationEngine", () => {
 
     it("renders a canvas element", () => {
         const { container } = render(
-            <AnimationEngine sceneData={ makeScene() } onSceneComplete = { jest.fn() } />
-    );
+            <AnimationEngine sceneData={makeScene()} onSceneComplete={jest.fn()} />
+        );
         const canvas = container.querySelector("canvas");
         expect(canvas).toBeInTheDocument();
     });
 
     it("initializes canvas with width 1280 and height 720", () => {
         const { container } = render(
-            <AnimationEngine sceneData={ makeScene() } onSceneComplete = { jest.fn() } />
-    );
+            <AnimationEngine sceneData={makeScene()} onSceneComplete={jest.fn()} />
+        );
         const canvas = container.querySelector("canvas");
         expect(canvas?.width).toBe(1280);
         expect(canvas?.height).toBe(720);
@@ -77,8 +77,8 @@ describe("AnimationEngine", () => {
 
     it("calls fillRect as placeholder when character assets are null", () => {
         render(
-            <AnimationEngine sceneData={ makeScene() } onSceneComplete = { jest.fn() } />
-    );
+            <AnimationEngine sceneData={makeScene()} onSceneComplete={jest.fn()} />
+        );
 
         // The engine should render placeholders via fillRect
         act(() => {
@@ -92,10 +92,10 @@ describe("AnimationEngine", () => {
         expect(() => {
             render(
                 <AnimationEngine
-          sceneData={ makeScene([]) }
-          onSceneComplete = { jest.fn() }
+                    sceneData={makeScene([])}
+                    onSceneComplete={jest.fn()}
                 />
-      );
+            );
         }).not.toThrow();
     });
 
@@ -104,10 +104,10 @@ describe("AnimationEngine", () => {
         expect(() => {
             render(
                 <AnimationEngine
-          sceneData={ makeScene([charNoDialogue]) }
-          onSceneComplete = { jest.fn() }
+                    sceneData={makeScene([charNoDialogue])}
+                    onSceneComplete={jest.fn()}
                 />
-      );
+            );
         }).not.toThrow();
     });
 
@@ -116,8 +116,8 @@ describe("AnimationEngine", () => {
         const char = makeCharacter("Jax", "left", ["Line 1"]);
 
         render(
-            <AnimationEngine sceneData={ makeScene([char]) } onSceneComplete = { onComplete } />
-    );
+            <AnimationEngine sceneData={makeScene([char])} onSceneComplete={onComplete} />
+        );
 
         // Each dialogue line takes ~3000ms, plus some buffer
         act(() => {
@@ -135,8 +135,8 @@ describe("AnimationEngine", () => {
         const char = makeCharacter("Jax", "left", ["Hello World!"]);
 
         render(
-            <AnimationEngine sceneData={ makeScene([char]) } onSceneComplete = { jest.fn() } />
-    );
+            <AnimationEngine sceneData={makeScene([char])} onSceneComplete={jest.fn()} />
+        );
 
         act(() => {
             jest.advanceTimersByTime(500);
@@ -160,10 +160,10 @@ describe("AnimationEngine", () => {
 
         render(
             <AnimationEngine
-        sceneData={ makeScene(chars) }
-        onSceneComplete = { jest.fn() }
+                sceneData={makeScene(chars)}
+                onSceneComplete={jest.fn()}
             />
-    );
+        );
 
         act(() => {
             jest.advanceTimersByTime(100);
@@ -179,8 +179,8 @@ describe("AnimationEngine", () => {
         const char = makeCharacter("Jax", "left", ["Speaking now"]);
 
         render(
-            <AnimationEngine sceneData={ makeScene([char]) } onSceneComplete = { jest.fn() } />
-    );
+            <AnimationEngine sceneData={makeScene([char])} onSceneComplete={jest.fn()} />
+        );
 
         // Advance past several 200ms mouth swap intervals
         act(() => {

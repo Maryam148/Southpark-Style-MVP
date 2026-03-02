@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import type { SceneData } from "@/components/AnimationEngine/types";
-import ScenePlayer, { type ScenePlayerHandle } from "@/components/AnimationEngine/ScenePlayer";
+import ScenePlayer from "@/components/AnimationEngine/ScenePlayer";
 import {
   AlertTriangle, ArrowLeft, Link2, Download, Lock,
   Loader2, CheckCircle2,
@@ -38,7 +38,7 @@ export default function EpisodePlayerClient({
   const [progress, setProgress] = useState(0);
 
   const playerWrapRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<ScenePlayerHandle>(null);
+  const playerRef = useRef<{ resetAndPlay: () => void } | null>(null);
 
   const [exportAudioCtx] = useState<AudioContext | undefined>(undefined);
   const [exportAudioDest] = useState<MediaStreamAudioDestinationNode | undefined>(undefined);

@@ -5,7 +5,8 @@
 export interface DialogueLine {
     line: string;
     mouthShape: string;
-    audio?: string; // URL to the synthesized speech
+    audio?: string;            // Absolute Supabase Storage URL to the synthesized speech
+    audioDurationSec?: number; // Duration in seconds — computed at TTS generation time
 }
 
 export interface CharacterAssets {

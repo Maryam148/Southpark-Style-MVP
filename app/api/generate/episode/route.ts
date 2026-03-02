@@ -3,21 +3,28 @@ import { createServerSupabaseClient } from "@/lib/supabaseServer";
 import { createAdminClient } from "@/lib/supabaseAdmin";
 import type { ScriptJSON } from "@/types";
 import type { SceneData, SceneCharacter } from "@/components/AnimationEngine/types";
-import { VOICE_MAP, DEFAULT_VOICE_ID, synthesizeSpeech } from "@/lib/tts";
+import { VOICE_MAP, DEFAULT_VOICE_ID, synthesizeSpeech, estimateMp3DurationSec } from "@/lib/tts";
+import { computeEpisodeTiming } from "@/lib/remotion/computeTimings";
+import { startRender } from "@/lib/remotion/lambda-render";
 
 export const maxDuration = 300;
 
 /* ──────────────────────────────────────────────────────────
    Generate all TTS audio in parallel and upload to Supabase Storage.
-   Returns a map of { storageKey → publicUrl }.
-   Falls back to the /api/tts proxy URL on any individual failure so
-   the episode still plays — it just gets on-demand audio for that line.
+   Returns a map of { storageKey → AudioResult }.
+   On individual failure the result has url: "" and durationSec: 0 —
+   the browser player falls back to word-count timing for that line,
+   and the Lambda export guard rejects episodes with missing audio.
    ────────────────────────────────────────────────────────── */
 interface TtsJob {
-    key: string;       // unique path within the bucket, e.g. "tts/{ep}/{i}.mp3"
+    key: string;   // unique path within the bucket, e.g. "tts/{ep}/{i}.mp3"
     text: string;
     voice: string;
-    fallbackUrl: string;
+}
+
+interface AudioResult {
+    url: string;         // absolute Supabase Storage public URL, or "" on failure
+    durationSec: number; // CBR-estimated duration; 0 on failure
 }
 
 /** Run async tasks with at most `concurrency` in-flight at once. */
@@ -39,16 +46,16 @@ async function asyncPool<T>(
     return results;
 }
 
-async function generateAllAudio(jobs: TtsJob[]): Promise<Map<string, string>> {
+async function generateAllAudio(jobs: TtsJob[]): Promise<Map<string, AudioResult>> {
     const admin = createAdminClient();
-    const results = new Map<string, string>();
+    const results = new Map<string, AudioResult>();
 
     // Ensure the audio bucket exists (no-op if already created)
     await admin.storage.createBucket("audio", { public: true }).catch(() => { });
 
     // 10 concurrent TTS requests — enough to be fast, won't hammer OpenAI rate limits
     await asyncPool(
-        jobs.map(({ key, text, voice, fallbackUrl }) => async () => {
+        jobs.map(({ key, text, voice }) => async () => {
             try {
                 const buffer = await synthesizeSpeech(text, voice);
                 const { error: uploadError } = await admin.storage
@@ -61,10 +68,15 @@ async function generateAllAudio(jobs: TtsJob[]): Promise<Map<string, string>> {
                 if (uploadError) throw uploadError;
 
                 const { data } = admin.storage.from("audio").getPublicUrl(key);
-                results.set(key, data.publicUrl);
+                results.set(key, {
+                    url: data.publicUrl,
+                    durationSec: estimateMp3DurationSec(buffer),
+                });
             } catch (err) {
                 console.error(`[Generate] TTS upload failed for ${key}:`, err);
-                results.set(key, fallbackUrl);
+                // Empty URL — never store a relative URL. The browser player falls
+                // back to word-count timing; the Lambda export guard rejects these.
+                results.set(key, { url: "", durationSec: 0 });
             }
         }),
         10,
@@ -95,13 +107,26 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        /* ── 1. Fetch episode & assets in parallel ──────────── */
+        /* ── 1. Fetch episode, assets, user profile & monthly usage in parallel ── */
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
         const [
             { data: episode, error: fetchError },
-            { data: userAssets, error: assetError }
+            { data: userAssets, error: assetError },
+            { data: userProfile },
+            { data: monthlyEpisodes },
         ] = await Promise.all([
             supabase.from("episodes").select("*").eq("id", episode_id).eq("user_id", user.id).single(),
-            supabase.from("assets").select("name, url").eq("user_id", user.id)
+            supabase.from("assets").select("name, url").eq("user_id", user.id),
+            supabase.from("users").select("plan").eq("id", user.id).single(),
+            supabase
+                .from("episodes")
+                .select("duration_sec")
+                .eq("user_id", user.id)
+                .eq("status", "completed")
+                .gte("created_at", monthStart.toISOString()),
         ]);
 
         if (fetchError || !episode) {
@@ -132,6 +157,39 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Invalid script JSON" }, { status: 400 });
         }
 
+        /* ── 2b. Enforce plan-based monthly minute limits ───── */
+        const PLAN_LIMITS_SEC: Record<string, number> = {
+            free: 60,          // 1 minute
+            pro: 600,          // 10 minutes
+            creator_plus: 1800, // 30 minutes
+        };
+
+        const userPlan = (userProfile?.plan as string) ?? "free";
+        const limitSec = PLAN_LIMITS_SEC[userPlan] ?? PLAN_LIMITS_SEC.free;
+        const usedSec = (monthlyEpisodes ?? []).reduce(
+            (sum, e) => sum + (e.duration_sec ?? 0),
+            0
+        );
+
+        // Estimate episode duration at ~130 words per minute
+        const allWords = scriptJSON.scenes
+            .flatMap((s) => s.characters.flatMap((c) => c.dialogue.map((d) => d.line)))
+            .join(" ")
+            .split(/\s+/)
+            .filter(Boolean);
+        const estimatedSec = Math.ceil(allWords.length / (130 / 60));
+
+        if (usedSec + estimatedSec > limitSec) {
+            const usedMin = (usedSec / 60).toFixed(1);
+            const limitMin = limitSec / 60;
+            return NextResponse.json(
+                {
+                    error: `Monthly limit reached. You've used ${usedMin} of your ${limitMin}-minute ${userPlan} allowance. Upgrade to generate more.`,
+                },
+                { status: 403 }
+            );
+        }
+
         /* ── 3. Build Asset Map ─────────────────────────────── */
         const assetMap = new Map<string, string>();
         (userAssets || []).forEach((a) => {
@@ -147,7 +205,7 @@ export async function POST(req: NextRequest) {
                 index === self.findIndex((c) => c.name.toLowerCase() === char.name.toLowerCase())
             );
 
-            const characters: SceneCharacter[] = uniqueChars.map((char) => {
+            const characters: SceneCharacter[] = scene.characters.map((char) => {
                 const baseName = char.name.toLowerCase();
                 return {
                     name: char.name,
@@ -199,13 +257,7 @@ export async function POST(req: NextRequest) {
                         continue;
                     }
                     const key = `tts/${episode_id}/${globalIdx}.mp3`;
-                    const fallbackParams = new URLSearchParams({ text: dl.line, voice });
-                    jobs.push({
-                        key,
-                        text: dl.line,
-                        voice,
-                        fallbackUrl: `/api/tts?${fallbackParams.toString()}`,
-                    });
+                    jobs.push({ key, text: dl.line, voice });
                     globalIdx++;
                 }
             }
@@ -224,7 +276,9 @@ export async function POST(req: NextRequest) {
                         continue;
                     }
                     const key = `tts/${episode_id}/${globalIdx}.mp3`;
-                    dl.audio = audioUrls.get(key);
+                    const audioResult = audioUrls.get(key);
+                    dl.audio = audioResult?.url || undefined;
+                    dl.audioDurationSec = audioResult?.durationSec || undefined;
                     globalIdx++;
                 }
             }
@@ -240,6 +294,7 @@ export async function POST(req: NextRequest) {
             .from("episodes")
             .update({
                 status: "completed",
+                duration_sec: estimatedSec,
                 metadata: {
                     ...(episode.metadata || {}),
                     playable: playableEpisode,
@@ -256,6 +311,40 @@ export async function POST(req: NextRequest) {
                 { error: `Failed to save: ${updateError.message}` },
                 { status: 500 }
             );
+        }
+
+        /* ── 7. Fire-and-forget: pre-render the video in the background ──
+           The user sees the preview immediately; by the time they click
+           "Export Video" the MP4 is already rendered or close to done.
+           Failures here are non-fatal — the user can still trigger a
+           manual export from the player page.
+        ──────────────────────────────────────────────────────────────── */
+        try {
+            const timing = computeEpisodeTiming(resolvedScenes);
+            const inputProps = { scenes: resolvedScenes, timing };
+            const admin = createAdminClient();
+
+            startRender({
+                compositionId: process.env.REMOTION_COMPOSITION_ID ?? "Episode",
+                inputProps,
+                episodeId: episode_id,
+                totalFrames: timing.totalFrames,
+            })
+                .then(async (handle) => {
+                    await admin.from("exports").insert({
+                        episode_id,
+                        user_id: user.id,
+                        status: "rendering",
+                        render_id: handle.renderId,
+                        bucket_name: handle.bucketName,
+                    });
+                    console.log(`[Generate] Background render started: ${handle.renderId}`);
+                })
+                .catch((err) => {
+                    console.error("[Generate] Background render failed (non-fatal):", err);
+                });
+        } catch (bgErr) {
+            console.error("[Generate] Background render setup failed (non-fatal):", bgErr);
         }
 
         return NextResponse.json({

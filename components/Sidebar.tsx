@@ -79,22 +79,16 @@ function Logo() {
 function UpgradeBanner() {
   return (
     <div className="mx-3 mb-3 overflow-hidden rounded-lg border border-sk-border bg-surface-1 p-3.5">
-      {/* Usage bar */}
-      <div className="mb-2.5 flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-text-3">Free Plan</span>
-        <span className="text-[10px] font-medium text-muted-text-3">0 / 3 episodes</span>
-      </div>
-      <div className="h-1 w-full overflow-hidden rounded-full bg-surface-0">
-        <div className="h-full w-0 rounded-full bg-violet-primary" />
-      </div>
-
-      <p className="mt-2.5 text-[11px] leading-relaxed text-muted-text-2">
-        Upgrade for unlimited generation and 4K exports.
+      <p className="text-[11px] leading-relaxed text-muted-text-2">
+        Unlock more minutes, MP4 export, and priority rendering.
       </p>
-      <button className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-md bg-violet-primary py-2 text-[11px] font-semibold tracking-wide text-white transition-colors hover:bg-violet-hover">
+      <Link
+        href="/dashboard/upgrade"
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-md bg-violet-primary py-2 text-[11px] font-semibold tracking-wide text-white transition-colors hover:bg-violet-hover"
+      >
         <Zap className="h-3 w-3" />
-        Upgrade
-      </button>
+        View Plans
+      </Link>
     </div>
   );
 }

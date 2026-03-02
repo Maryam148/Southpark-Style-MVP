@@ -6,7 +6,7 @@
 export type EpisodeStatus = "draft" | "processing" | "completed" | "failed";
 export type AssetType = "character" | "background" | "prop" | "audio" | "script";
 export type PaymentStatus = "pending" | "succeeded" | "failed" | "refunded";
-export type Plan = "free" | "pro" | "enterprise";
+export type Plan = "free" | "pro" | "creator_plus";
 
 // ─── Models ─────────────────────────────────────────────
 export interface User {

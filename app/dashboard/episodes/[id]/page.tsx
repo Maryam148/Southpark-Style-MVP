@@ -32,6 +32,7 @@ export default async function EpisodePlayerPage({
     if (fetchErr || !data) {
         return (
             <EpisodePlayerClient
+                episodeId={params.id}
                 title="Episode"
                 createdAt={new Date().toISOString()}
                 playable={null}
@@ -46,6 +47,7 @@ export default async function EpisodePlayerPage({
 
     return (
         <EpisodePlayerClient
+            episodeId={ep.id}
             title={ep.title}
             createdAt={ep.created_at}
             playable={playable}

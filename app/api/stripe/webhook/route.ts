@@ -38,13 +38,17 @@ export async function POST(req: NextRequest) {
 
             const supabaseAdmin = createAdminClient();
 
-            // Mark user as paid
+            // Resolve plan from metadata (default "pro" for legacy sessions)
+            const rawPlan = session.metadata?.plan ?? "pro";
+            const plan = ["pro", "creator_plus"].includes(rawPlan) ? rawPlan : "pro";
+
+            // Mark user as paid with correct plan
             const { error: updateError } = await supabaseAdmin
                 .from("users")
                 .update({
                     is_paid: true,
                     stripe_customer_id: session.customer as string | null,
-                    plan: "pro",
+                    plan,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", userId);

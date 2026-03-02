@@ -45,6 +45,12 @@ let cachedUserId: string | null = null;
  * and caches profile in-memory across navigations.
  */
 export function useUser(): UseUserReturn {
+    // Bust the module-level cache when redirected back after a plan activation
+    if (typeof window !== "undefined" && window.location.search.includes("activated=1")) {
+        cachedUser = null;
+        cachedUserId = null;
+    }
+
     const [user, setUser] = useState<User | null>(cachedUser);
     const [authUser, setAuthUser] = useState<AuthUser | null>(null);
     const [loading, setLoading] = useState(cachedUser ? false : true);
