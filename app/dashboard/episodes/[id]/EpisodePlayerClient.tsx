@@ -5,16 +5,11 @@ import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import type { SceneData } from "@/components/AnimationEngine/types";
-import ScenePlayer from "@/components/AnimationEngine/ScenePlayer";
+import ScenePlayer, { type ScenePlayerHandle } from "@/components/AnimationEngine/ScenePlayer";
 import {
   AlertTriangle, ArrowLeft, Link2, Download, Lock,
   Loader2, CheckCircle2,
 } from "lucide-react";
-
-// NOTE: CANVAS_W / CANVAS_H are no longer needed for export (server-side MP4),
-// but kept here in case you reintroduce client-side recording later.
-const CANVAS_W = 1280;
-const CANVAS_H = 720;
 
 interface PlayableEpisode { episodeTitle: string; scenes: SceneData[]; }
 
@@ -26,10 +21,10 @@ interface EpisodePlayerClientProps {
   error?: string | null;
 }
 
-type ExportPhase = "idle" | "server-render" | "done";
+type ExportPhase = "idle" | "recording" | "done";
 
 export default function EpisodePlayerClient({
-  episodeId, title, createdAt, playable, error,
+  episodeId: _episodeId, title, createdAt, playable, error,
 }: EpisodePlayerClientProps) {
   const { toast } = useToast();
   const { user } = useUser();
@@ -38,65 +33,150 @@ export default function EpisodePlayerClient({
   const [progress, setProgress] = useState(0);
 
   const playerWrapRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<{ resetAndPlay: () => void } | null>(null);
+  const playerRef = useRef<ScenePlayerHandle | null>(null);
 
-  const [exportAudioCtx] = useState<AudioContext | undefined>(undefined);
-  const [exportAudioDest] = useState<MediaStreamAudioDestinationNode | undefined>(undefined);
+  const [exportAudioCtx, setExportAudioCtx] = useState<AudioContext | undefined>(undefined);
+  const [exportAudioDest, setExportAudioDest] = useState<MediaStreamAudioDestinationNode | undefined>(undefined);
+  const exportRecorderRef = useRef<MediaRecorder | null>(null);
 
   useEffect(() => { setIsMounted(true); }, []);
+
+  // Stop any in-progress recording if the component unmounts mid-export
+  useEffect(() => {
+    return () => {
+      const rec = exportRecorderRef.current;
+      if (rec && rec.state === "recording") rec.stop();
+    };
+  }, []);
 
   const canExport = true || user?.plan === "pro" || user?.plan === "creator_plus";
 
   /* ══════════════════════════════════════════════════════════
-     START EXPORT — Server-side Remotion MP4 via /api/export/local
+     Episode complete — stop MediaRecorder when all scenes finish
+     ══════════════════════════════════════════════════════════ */
+  const onEpisodeComplete = useCallback(() => {
+    const rec = exportRecorderRef.current;
+    if (rec && rec.state === "recording") {
+      // Brief delay to capture the final frame before stopping
+      setTimeout(() => {
+        if (rec.state === "recording") rec.stop();
+      }, 500);
+    }
+  }, []);
+
+  /* ══════════════════════════════════════════════════════════
+     START EXPORT — Client-side MediaRecorder (runs on user's machine)
+     Captures the canvas animation + TTS audio in real-time.
+     Prefers MP4/H.264 where the browser supports it (Chrome, Safari);
+     falls back to WebM on Firefox.
      ══════════════════════════════════════════════════════════ */
   const startExport = useCallback(async () => {
-    if (!playable) return;
+    if (!playable || !playerRef.current) return;
 
     try {
-      setPhase("server-render");
+      setPhase("recording");
       setProgress(0);
-      // If the render is slow, show an indeterminate "working" state.
-      // (The local render endpoint does not currently provide granular progress.)
-      const pulse = setInterval(() => {
-        setProgress((p) => (p >= 95 ? 95 : p + 1));
-      }, 2500);
 
-      const res = await fetch("/api/export/local", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ episode_id: episodeId }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to start export");
+      // 1. Get video stream from the stable mirror canvas in ScenePlayer.
+      //    This canvas persists across scene remounts, so the MediaRecorder
+      //    captures the full episode without interruption.
+      const videoStream = playerRef.current.getCaptureStream(30);
+      if (!videoStream) {
+        throw new Error("Could not capture canvas stream. Try refreshing the page.");
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      // Response is always video/mp4 from /api/export/local
-      a.download = `${title || "episode"}.mp4`;
-      a.click();
-      URL.revokeObjectURL(url);
+      // 2. Create AudioContext in this user-gesture context so TTS audio
+      //    can be routed through it to the MediaRecorder.
+      let audioCtx: AudioContext | undefined;
+      let audioDest: MediaStreamAudioDestinationNode | undefined;
+      try {
+        audioCtx = new AudioContext();
+        audioDest = audioCtx.createMediaStreamDestination();
+        setExportAudioCtx(audioCtx);
+        setExportAudioDest(audioDest);
+      } catch (e) {
+        console.warn("[Export] AudioContext unavailable — exporting video only:", e);
+      }
 
-      clearInterval(pulse);
-      setProgress(100);
-      setPhase("done");
+      // 3. Combine video track + audio track into one stream
+      const tracks: MediaStreamTrack[] = [...videoStream.getVideoTracks()];
+      if (audioDest) tracks.push(...audioDest.stream.getAudioTracks());
+      const combinedStream = new MediaStream(tracks);
+
+      // 4. Pick best MIME type — prefer MP4/H.264 (Chrome 131+, Safari),
+      //    fall back to WebM (Firefox)
+      const CANDIDATES = [
+        "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+        "video/mp4;codecs=avc1,mp4a",
+        "video/mp4",
+        "video/webm;codecs=vp9,opus",
+        "video/webm",
+      ];
+      const mimeType = CANDIDATES.find((t) => MediaRecorder.isTypeSupported(t)) ?? "video/webm";
+      const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+
+      // 5. Set up MediaRecorder
+      const recorder = new MediaRecorder(combinedStream, {
+        mimeType,
+        videoBitsPerSecond: 5_000_000,
+      });
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${title || "episode"}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        setProgress(100);
+        setPhase("done");
+        exportRecorderRef.current = null;
+        audioCtx?.close().catch(() => {});
+        setExportAudioCtx(undefined);
+        setExportAudioDest(undefined);
+      };
+
+      recorder.onerror = () => {
+        setProgress(0);
+        setPhase("idle");
+        exportRecorderRef.current = null;
+        audioCtx?.close().catch(() => {});
+        setExportAudioCtx(undefined);
+        setExportAudioDest(undefined);
+        toast({ variant: "destructive", title: "Export failed", description: "Recording error. Try again." });
+      };
+
+      exportRecorderRef.current = recorder;
+      recorder.start(200); // emit chunks every 200ms
+
+      // 6. Reset and play from the beginning — recorder captures in real-time
+      playerRef.current.resetAndPlay();
+
+      // Pulse progress bar to show activity (export plays at real-time speed)
+      const pulse = setInterval(() => {
+        setProgress((p) => (p >= 90 ? 90 : p + 1));
+      }, 3000);
+      recorder.addEventListener("stop", () => clearInterval(pulse), { once: true });
+
     } catch (e: unknown) {
       console.error("[EpisodePlayer] Export failed", e);
-      // Ensure any progress pulse stops on errors.
       setProgress(0);
+      setPhase("idle");
+      exportRecorderRef.current = null;
       toast({
         variant: "destructive",
         title: "Export failed",
         description: e instanceof Error ? e.message : "Something went wrong while exporting.",
       });
-      setPhase("idle");
     }
-  }, [episodeId, playable, toast]);
+  }, [playable, title, toast]);
 
   /* ══════════════════════════════════════════════════════════
      RENDER
@@ -140,17 +220,18 @@ export default function EpisodePlayerClient({
           </button>
 
           {phase === "idle" && (
-            <button onClick={startExport} disabled={!playable}
+            <button onClick={startExport} disabled={!playable || !canExport}
               className="inline-flex items-center gap-1.5 rounded-md border border-sk-border px-3 py-2 text-sm text-muted-text-1 transition-colors duration-150 hover:bg-surface-2 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed">
-              <Download className="h-4 w-4" /> Export Video
+              {canExport ? <Download className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+              Export Video
             </button>
           )}
-          {phase === "server-render" && (
+          {phase === "recording" && (
             <button
               disabled
               className="inline-flex items-center gap-1.5 rounded-md border border-violet-primary/40 bg-violet-primary/10 px-3 py-2 text-sm font-medium text-violet-300"
             >
-              <Loader2 className="h-4 w-4 animate-spin" /> Rendering MP4{progress ? ` ${progress}%` : ""}
+              <Loader2 className="h-4 w-4 animate-spin" /> Recording{progress ? ` ${progress}%` : "…"}
             </button>
           )}
           {phase === "done" && (
@@ -167,6 +248,9 @@ export default function EpisodePlayerClient({
           <ScenePlayer
             ref={playerRef}
             scenes={playable.scenes}
+            exportAudioCtx={exportAudioCtx}
+            exportAudioDest={exportAudioDest}
+            onEpisodeComplete={onEpisodeComplete}
           />
         )}
       </div>

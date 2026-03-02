@@ -117,6 +117,12 @@ interface AnimationEngineProps {
      */
     exportAudioCtx?: AudioContext;
     exportAudioDest?: MediaStreamAudioDestinationNode;
+    /**
+     * Persistent canvas owned by ScenePlayer. Every rendered frame is mirrored
+     * here so MediaRecorder can capture the full episode uninterrupted across
+     * scene remounts (AnimationEngine re-mounts on each scene change).
+     */
+    mirrorCanvasRef?: { current: HTMLCanvasElement | null };
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -131,8 +137,12 @@ export default function AnimationEngine({
     initialTime: _initialTime = 0,
     exportAudioCtx,
     exportAudioDest,
+    mirrorCanvasRef,
 }: AnimationEngineProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    // Ref wrapper so the tick callback ([] deps) can always read the latest mirrorCanvasRef
+    const mirrorCanvasRefRef = useRef(mirrorCanvasRef);
+    mirrorCanvasRefRef.current = mirrorCanvasRef;
     const stateRef = useRef<EngineState | null>(null);
     const rafRef = useRef<number>(0);
 
@@ -475,6 +485,14 @@ export default function AnimationEngine({
             const lineOffset = (audio && !audio.paused && !isNaN(audio.currentTime)) ? audio.currentTime : 0;
             const lineDuration = NO_AUDIO_LINE_MS / 1000;
             onTimeUpdateRef.current?.(state.currentQueueIdx * lineDuration + lineOffset);
+        }
+
+        // Mirror frame to ScenePlayer's persistent canvas so MediaRecorder
+        // captures the full episode across scene remounts.
+        const mirrorCanvas = mirrorCanvasRefRef.current?.current;
+        if (mirrorCanvas) {
+            const mCtx = mirrorCanvas.getContext("2d");
+            if (mCtx) mCtx.drawImage(canvas, 0, 0);
         }
 
         rafRef.current = requestAnimationFrame(tick);

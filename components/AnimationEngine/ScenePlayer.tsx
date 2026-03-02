@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import AnimationEngine from "./AnimationEngine";
 import type { SceneData } from "./types";
+import { CANVAS_W, CANVAS_H } from "./drawHelpers";
 import {
   Play, Pause, SkipBack, SkipForward,
   Maximize, Minimize, RotateCcw, Volume2, VolumeX, Film,
@@ -38,6 +39,8 @@ function formatTime(s: number): string {
    ───────────────────────────────────────────────────────── */
 export interface ScenePlayerHandle {
   resetAndPlay: () => void;
+  /** Returns a MediaStream from the stable mirror canvas for client-side MP4 export. */
+  getCaptureStream: (fps?: number) => MediaStream | null;
 }
 
 interface ScenePlayerProps {
@@ -69,6 +72,8 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
     const scrubberRef = useRef<HTMLInputElement>(null);
     const timeDisplayRef = useRef<HTMLSpanElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    // Persistent canvas — stable across AnimationEngine remounts; used by MediaRecorder
+    const persistentCanvasRef = useRef<HTMLCanvasElement>(null);
 
     /* ── Timing refs (wall-clock) ── */
     const playStartRef = useRef<number | null>(null); // performance.now() when scene started
@@ -280,7 +285,10 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
     /* ─────────────────────────────────────────────────────────
        Imperative handle for export
        ───────────────────────────────────────────────────────── */
-    useImperativeHandle(ref, () => ({ resetAndPlay: handleReset }), [handleReset]);
+    useImperativeHandle(ref, () => ({
+      resetAndPlay: handleReset,
+      getCaptureStream: (fps = 30) => persistentCanvasRef.current?.captureStream(fps) ?? null,
+    }), [handleReset]);
 
     /* ─────────────────────────────────────────────────────────
        Empty state
@@ -306,6 +314,15 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
         onTouchStart={triggerControls}
         onDoubleClick={toggleFullscreen}
       >
+        {/* Hidden persistent canvas — stable MediaRecorder source across scene remounts */}
+        <canvas
+          ref={persistentCanvasRef}
+          width={CANVAS_W}
+          height={CANVAS_H}
+          style={{ display: "none" }}
+          aria-hidden="true"
+        />
+
         {/* ── Canvas — always mounted so export capture continues working ── */}
         <AnimationEngine
           key={`${currentIdx}-${resetKey}`}
@@ -315,6 +332,7 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
           muted={muted || !!forceMuted}
           exportAudioCtx={exportAudioCtx}
           exportAudioDest={exportAudioDest}
+          mirrorCanvasRef={persistentCanvasRef}
         />
 
         {/* ── Done overlay (on top of canvas, not replacing it) ── */}
