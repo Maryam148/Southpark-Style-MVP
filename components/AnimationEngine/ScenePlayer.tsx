@@ -281,6 +281,7 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
        ───────────────────────────────────────────────────────── */
     useEffect(() => {
       const handler = (e: KeyboardEvent) => {
+        if (exportAudioPlan) return; // Disable shortcuts during export
         const tag = (e.target as HTMLElement).tagName;
         if (tag === "INPUT" || tag === "TEXTAREA") return;
         if (e.code === "Space") { e.preventDefault(); togglePlay(); }
@@ -297,7 +298,7 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
       };
       window.addEventListener("keydown", handler);
       return () => window.removeEventListener("keydown", handler);
-    }, [togglePlay, toggleFullscreen, seekTo, totalDuration]);
+    }, [togglePlay, toggleFullscreen, seekTo, totalDuration, exportAudioPlan]);
 
     /* ─────────────────────────────────────────────────────────
        Imperative handle for export
@@ -387,7 +388,7 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
         )}
 
         {/* ── Click-to-pause (canvas area only) ── */}
-        {hasStarted && !done && (
+        {hasStarted && !done && !exportAudioPlan && (
           <div
             className="absolute inset-0 z-[5]"
             onClick={togglePlay}
@@ -406,7 +407,7 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
         {/* ── Controls overlay ── */}
         <div
           className={`absolute inset-x-0 bottom-0 z-20 transition-all duration-300 ${controlsVisible ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 translate-y-1"
-            }`}
+            } ${exportAudioPlan ? "pointer-events-none" : ""}`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Gradient fade */}

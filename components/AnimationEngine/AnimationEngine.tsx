@@ -332,6 +332,7 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
             const plan = exportAudioPlanRef.current;
             if (plan && url) {
                 plan.playClip(url);
+                onStarted?.();
                 const buffer = plan.bufferMap.get(url);
                 const durationMs = buffer ? buffer.duration * 1000 : text.trim().split(/\s+/).length * 400;
 
