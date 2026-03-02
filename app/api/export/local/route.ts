@@ -12,7 +12,7 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { computeEpisodeTiming } from "@/lib/remotion/computeTimings";
+import { computeEpisodeTiming } from "../../../../lib/remotion/computeTimings";
 import { createServerSupabaseClient } from "@/lib/supabaseServer";
 import { spawn } from "child_process";
 import path from "path";
