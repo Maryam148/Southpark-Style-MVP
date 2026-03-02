@@ -92,6 +92,10 @@ export default function EpisodePlayerClient({
       try {
         audioCtx = new AudioContext();
         audioDest = audioCtx.createMediaStreamDestination();
+        // Some browsers (Firefox, certain OS audio configs) start the AudioContext
+        // in a "suspended" state even within a user-gesture handler. Resuming here
+        // ensures audio is captured from the very first frame of the recording.
+        audioCtx.resume().catch(() => {});
         setExportAudioCtx(audioCtx);
         setExportAudioDest(audioDest);
       } catch (e) {

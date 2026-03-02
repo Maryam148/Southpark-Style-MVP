@@ -331,6 +331,17 @@ export default function AnimationEngine({
 
         target.onended = () => {
             if (advanceGenRef.current !== gen) return;
+            // Stop mouth animation the moment audio ends — not 400 ms later when
+            // advance() runs. Without this the character keeps flapping in silence
+            // during the LINE_GAP delay, which is clearly visible in exported video.
+            const st = stateRef.current;
+            if (st && st.currentQueueIdx >= 0) {
+                const entry = st.globalDialogueQueue[st.currentQueueIdx];
+                if (entry) {
+                    const cs = st.characters[entry.charIdx];
+                    if (cs) { cs.isTalking = false; cs.mouthOpen = false; }
+                }
+            }
             setTimeout(() => advanceFnRef.current(), LINE_GAP_MS);
         };
 
