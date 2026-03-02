@@ -36,8 +36,9 @@ export interface ExportAudioPlan {
   /**
    * Play a single clip right now. Call this from the onDialoguePlay callback
    * so the recorded audio is perfectly synced with the visual animation.
+   * @param onEnded Fired exactly when the hardware audio buffer finishes playing.
    */
-  playClip: (audioUrl: string) => void;
+  playClip: (audioUrl: string, onEnded?: () => void) => void;
 }
 
 export async function buildExportAudio(
@@ -96,11 +97,15 @@ export async function buildExportAudio(
   const totalDuration = Math.max(cursor, 1);
 
   // Playback function — called on-demand when AnimationEngine starts each line
-  const playClip = (audioUrl: string) => {
+  const playClip = (audioUrl: string, onEnded?: () => void) => {
     const buffer = bufferMap.get(audioUrl);
-    if (!buffer) return;
+    if (!buffer) {
+      if (onEnded) onEnded();
+      return;
+    }
     const node = ctx.createBufferSource();
     node.buffer = buffer;
+    if (onEnded) node.onended = onEnded;
     node.connect(dest);          // recorded into the video
     node.connect(ctx.destination); // audible to the user during export
     node.start();

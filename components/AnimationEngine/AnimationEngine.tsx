@@ -331,12 +331,10 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
 
             const plan = exportAudioPlanRef.current;
             if (plan && url) {
-                plan.playClip(url);
-                onStarted?.();
                 const buffer = plan.bufferMap.get(url);
                 const durationMs = buffer ? buffer.duration * 1000 : text.trim().split(/\s+/).length * 400;
 
-                setTimeout(() => {
+                plan.playClip(url, () => {
                     if (advanceGenRef.current !== gen) return;
                     const st = stateRef.current;
                     if (st && st.currentQueueIdx >= 0) {
@@ -346,13 +344,17 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
                             if (cs) { cs.isTalking = false; cs.mouthOpen = false; }
                         }
                     }
-                }, durationMs);
+                    setTimeout(() => advanceFnRef.current(), LINE_GAP_MS);
+                });
+                onStarted?.();
 
+                // Failsafe timer (gives hardware clock 2 extra seconds to fire onended)
                 if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
                 safetyTimerRef.current = setTimeout(() => {
                     if (advanceGenRef.current !== gen) return;
+                    console.warn("[AnimationEngine] Export clip onended failsafe triggered.");
                     advanceFnRef.current();
-                }, durationMs + LINE_GAP_MS);
+                }, durationMs + LINE_GAP_MS + 2000);
                 return;
             }
 
