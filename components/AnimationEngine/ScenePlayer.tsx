@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
-import AnimationEngine from "./AnimationEngine";
+import AnimationEngine, { type AnimationEngineHandle } from "./AnimationEngine";
 import type { SceneData } from "./types";
 import { CANVAS_W, CANVAS_H } from "./drawHelpers";
 import {
@@ -74,6 +74,7 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     // Persistent canvas — stable across AnimationEngine remounts; used by MediaRecorder
     const persistentCanvasRef = useRef<HTMLCanvasElement>(null);
+    const engineRef = useRef<AnimationEngineHandle>(null);
 
     /* ── Timing refs (wall-clock) ── */
     const playStartRef = useRef<number | null>(null); // performance.now() when scene started
@@ -190,6 +191,7 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
        Play / Pause
        ───────────────────────────────────────────────────────── */
     const togglePlay = useCallback(() => {
+      engineRef.current?.unlockAudio();
       // iOS WebKit (used by ALL browsers on iPhone — Safari, Chrome, Firefox) blocks
       // audio.play() when called from async contexts like useEffect. The browser only
       // allows play() that is triggered synchronously within a user-gesture handler.
@@ -199,8 +201,8 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
         try {
           new Audio(
             "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
-          ).play().catch(() => {});
-        } catch (_) {}
+          ).play().catch(() => { });
+        } catch { }
       }
 
       const nowPaused = isPausedRef.current;
@@ -332,12 +334,14 @@ const ScenePlayer = forwardRef<ScenePlayerHandle, ScenePlayerProps>(
           ref={persistentCanvasRef}
           width={CANVAS_W}
           height={CANVAS_H}
-          style={{ display: "none" }}
+          className="absolute pointer-events-none opacity-0"
+          style={{ width: "1px", height: "1px", left: "-9999px" }}
           aria-hidden="true"
         />
 
         {/* ── Canvas — always mounted so export capture continues working ── */}
         <AnimationEngine
+          ref={engineRef}
           key={`${currentIdx}-${resetKey}`}
           sceneData={scenes[currentIdx]}
           onSceneComplete={handleSceneComplete}

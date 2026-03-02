@@ -95,7 +95,7 @@ export default function EpisodePlayerClient({
         // Some browsers (Firefox, certain OS audio configs) start the AudioContext
         // in a "suspended" state even within a user-gesture handler. Resuming here
         // ensures audio is captured from the very first frame of the recording.
-        audioCtx.resume().catch(() => {});
+        audioCtx.resume().catch(() => { });
         setExportAudioCtx(audioCtx);
         setExportAudioDest(audioDest);
       } catch (e) {
@@ -122,7 +122,7 @@ export default function EpisodePlayerClient({
       // 5. Set up MediaRecorder
       const recorder = new MediaRecorder(combinedStream, {
         mimeType,
-        videoBitsPerSecond: 5_000_000,
+        videoBitsPerSecond: 2_500_000,
       });
       const chunks: Blob[] = [];
 
@@ -142,7 +142,7 @@ export default function EpisodePlayerClient({
         setProgress(100);
         setPhase("done");
         exportRecorderRef.current = null;
-        audioCtx?.close().catch(() => {});
+        audioCtx?.close().catch(() => { });
         setExportAudioCtx(undefined);
         setExportAudioDest(undefined);
       };
@@ -151,7 +151,7 @@ export default function EpisodePlayerClient({
         setProgress(0);
         setPhase("idle");
         exportRecorderRef.current = null;
-        audioCtx?.close().catch(() => {});
+        audioCtx?.close().catch(() => { });
         setExportAudioCtx(undefined);
         setExportAudioDest(undefined);
         toast({ variant: "destructive", title: "Export failed", description: "Recording error. Try again." });
