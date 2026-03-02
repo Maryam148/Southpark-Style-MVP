@@ -154,16 +154,8 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
 
         useImperativeHandle(ref, () => ({
             unlockAudio: () => {
-                const playAndPause = (audio: HTMLAudioElement) => {
-                    const p = audio.play();
-                    if (p !== undefined) {
-                        p.then(() => audio.pause()).catch(() => { });
-                    } else {
-                        audio.pause();
-                    }
-                };
-                if (audioRef.current) playAndPause(audioRef.current);
-                if (preloadRef.current) playAndPause(preloadRef.current);
+                if (audioRef.current) audioRef.current.play().catch(() => { });
+                if (preloadRef.current) preloadRef.current.play().catch(() => { });
             }
         }));
 
@@ -338,6 +330,18 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
                 plan.playClip(url);
                 const buffer = plan.bufferMap.get(url);
                 const durationMs = buffer ? buffer.duration * 1000 : text.trim().split(/\s+/).length * 400;
+
+                setTimeout(() => {
+                    if (advanceGenRef.current !== gen) return;
+                    const st = stateRef.current;
+                    if (st && st.currentQueueIdx >= 0) {
+                        const entry = st.globalDialogueQueue[st.currentQueueIdx];
+                        if (entry) {
+                            const cs = st.characters[entry.charIdx];
+                            if (cs) { cs.isTalking = false; cs.mouthOpen = false; }
+                        }
+                    }
+                }, durationMs);
 
                 if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
                 safetyTimerRef.current = setTimeout(() => {

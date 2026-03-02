@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<body>
+<button id="btn">Play</button>
+<script>
+document.getElementById('btn').onclick = () => {
+  const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+  const p = audio.play();
+  if (p !== undefined) {
+      p.then(() => {
+          console.log("first play resolved, pausing");
+          audio.pause();
+      }).catch(e => console.log("first play rejected", e));
+  }
+
+  setTimeout(() => {
+      console.log("setting new src and playing");
+      audio.src = "https://www.w3schools.com/html/horse.ogg";
+      const p2 = audio.play();
+      if (p2 !== undefined) {
+          p2.then(() => console.log("second play resolved")).catch(e => console.log("second play rejected", e));
+      }
+      setTimeout(() => {
+          console.log("audio is paused?", audio.paused);
+      }, 500);
+  }, 10); // simulate React effect spacing
+};
+</script>
+</body>
+</html>
