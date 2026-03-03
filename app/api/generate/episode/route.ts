@@ -58,7 +58,7 @@ async function generateAllAudio(jobs: TtsJob[]): Promise<Map<string, AudioResult
     await admin.storage.createBucket("audio", { public: true }).catch(() => { });
     await admin.storage.updateBucket("audio", { public: true }).catch(() => { });
 
-    // 10 concurrent TTS requests — enough to be fast, won't hammer OpenAI rate limits
+    // 5 concurrent TTS requests — prevents hammering OpenAI rate limits initially while backoff handles the rest.
     await asyncPool(
         jobs.map(({ key, text, voice }) => async () => {
             try {
@@ -84,7 +84,7 @@ async function generateAllAudio(jobs: TtsJob[]): Promise<Map<string, AudioResult
                 results.set(key, { url: "", durationSec: 0 });
             }
         }),
-        10,
+        5,
     );
 
     return results;
@@ -112,26 +112,13 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        /* ── 1. Fetch episode, assets, user profile & monthly usage in parallel ── */
-        const monthStart = new Date();
-        monthStart.setDate(1);
-        monthStart.setHours(0, 0, 0, 0);
-
+        /* ── 1. Fetch episode & assets ── */
         const [
             { data: episode, error: fetchError },
             { data: userAssets, error: assetError },
-            { data: userProfile },
-            { data: monthlyEpisodes },
         ] = await Promise.all([
             supabase.from("episodes").select("*").eq("id", episode_id).eq("user_id", user.id).single(),
             supabase.from("assets").select("name, url").eq("user_id", user.id),
-            supabase.from("users").select("plan").eq("id", user.id).single(),
-            supabase
-                .from("episodes")
-                .select("duration_sec")
-                .eq("user_id", user.id)
-                .eq("status", "completed")
-                .gte("created_at", monthStart.toISOString()),
         ]);
 
         if (fetchError || !episode) {
@@ -162,8 +149,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Invalid script JSON" }, { status: 400 });
         }
 
-        /* ── 2b. Enforce plan-based monthly minute limits ───── */
-        // Estimate episode duration at ~130 words per minute (still needed for duration_sec)
+        /* ── 2b. Estimate episode duration (for duration_sec field only) ── */
         const allWords = scriptJSON.scenes
             .flatMap((s) => s.characters.flatMap((c) => c.dialogue.map((d) => d.line)))
             .join(" ")
@@ -171,23 +157,8 @@ export async function POST(req: NextRequest) {
             .filter(Boolean);
         const estimatedSec = Math.ceil(allWords.length / (130 / 60));
 
-        // TEMPORARILY DISABLED for client testing — re-enable before launch
-        // const PLAN_LIMITS_SEC: Record<string, number> = {
-        //     free: 60,          // 1 minute
-        //     pro: 600,          // 10 minutes
-        //     creator_plus: 1800, // 30 minutes
-        // };
-        // const userPlan = (userProfile?.plan as string) ?? "free";
-        // const limitSec = PLAN_LIMITS_SEC[userPlan] ?? PLAN_LIMITS_SEC.free;
-        // const usedSec = (monthlyEpisodes ?? []).reduce((sum, e) => sum + (e.duration_sec ?? 0), 0);
-        // if (usedSec + estimatedSec > limitSec) {
-        //     const usedMin = (usedSec / 60).toFixed(1);
-        //     const limitMin = limitSec / 60;
-        //     return NextResponse.json(
-        //         { error: `Monthly limit reached. You've used ${usedMin} of your ${limitMin}-minute ${userPlan} allowance. Upgrade to generate more.` },
-        //         { status: 403 }
-        //     );
-        // }
+        // Plan limits disabled for client testing
+        // const PLAN_LIMITS_SEC = { free: 60, pro: 600, creator_plus: 1800 };
 
         /* ── 3. Build Asset Map ─────────────────────────────── */
         const assetMap = new Map<string, string>();
@@ -263,7 +234,8 @@ export async function POST(req: NextRequest) {
         }
 
         const audioUrls = await generateAllAudio(jobs);
-        console.log(`[Generate] TTS done — ${jobs.length} lines generated.`);
+        const successfulAudio = Array.from(audioUrls.values()).filter((r) => !!r.url).length;
+        console.log(`[Generate] TTS done — ${successfulAudio}/${jobs.length} lines uploaded successfully.`);
 
         // Assign the URLs back
         globalIdx = 0;
@@ -350,6 +322,7 @@ export async function POST(req: NextRequest) {
             episode_id,
             status: "completed",
             playable: playableEpisode,
+            debug: { audioLines: jobs.length, audioUploaded: successfulAudio },
         });
     } catch (error: unknown) {
         console.error("Generate episode error:", error);
