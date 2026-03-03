@@ -24,13 +24,20 @@ interface EpisodePlayerClientProps {
 
 type ExportPhase = "idle" | "preparing" | "recording" | "done";
 
-/** Returns true if the episode was generated with the old on-demand /api/tts approach */
+/**
+ * Returns true if the episode needs audio regeneration:
+ * - old /api/tts on-demand URLs
+ * - missing audio on non-empty dialogue lines (generated before TTS was added)
+ * - non-Supabase URLs (e.g. old Cloudinary)
+ */
 function hasLegacyAudio(p: PlayableEpisode | null): boolean {
   if (!p) return false;
   for (const scene of p.scenes) {
     for (const char of scene.characters) {
       for (const dl of char.dialogue) {
-        if (dl.audio && dl.audio.startsWith("/api/tts")) return true;
+        if (!dl.line || dl.line.trim() === "" || /^\[pause\]$/i.test(dl.line.trim())) continue;
+        // Any real dialogue line missing a Supabase Storage URL is legacy
+        if (!dl.audio || !dl.audio.includes("supabase")) return true;
       }
     }
   }
