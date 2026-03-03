@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
 
         /* ── 2b. Estimate episode duration (for duration_sec field only) ── */
         const allWords = scriptJSON.scenes
-            .flatMap((s) => s.characters.flatMap((c) => c.dialogue)) // dialogue is just string[] now
+            .flatMap((s) => s.characters.flatMap((c) => c.dialogue.map((d) => (d as any).line || d)))
             .join(" ")
             .split(/\s+/)
             .filter(Boolean);
@@ -192,10 +192,9 @@ export async function POST(req: NextRequest) {
                             talking: resolve(`${baseName}_mouth_talking`),
                         },
                     },
-                    // user JSON supplies raw strings. AnimationEngine expects {line, mouthShape} objects.
-                    dialogue: (char.dialogue as unknown as string[]).map((dlStr) => ({
-                        line: dlStr,
-                        mouthShape: "talking",
+                    dialogue: char.dialogue.map((dl: any) => ({
+                        line: dl.line || dl,
+                        mouthShape: dl.mouthShape || "talking",
                     })),
                 };
             });
