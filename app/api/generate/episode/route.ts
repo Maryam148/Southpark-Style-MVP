@@ -50,8 +50,13 @@ async function generateAllAudio(jobs: TtsJob[]): Promise<Map<string, AudioResult
     const admin = createAdminClient();
     const results = new Map<string, AudioResult>();
 
-    // Ensure the audio bucket exists (no-op if already created)
+    // Ensure the audio bucket exists AND is public.
+    // createBucket is a no-op when the bucket already exists, so we also call
+    // updateBucket to force public:true on buckets that were created without it.
+    // Both calls are non-fatal — a failure here means audio URLs will 403 on
+    // the client, but we don't want to abort the whole generation.
     await admin.storage.createBucket("audio", { public: true }).catch(() => { });
+    await admin.storage.updateBucket("audio", { public: true }).catch(() => { });
 
     // 10 concurrent TTS requests — enough to be fast, won't hammer OpenAI rate limits
     await asyncPool(
