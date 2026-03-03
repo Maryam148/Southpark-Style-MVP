@@ -318,10 +318,17 @@ export async function POST(req: NextRequest) {
             console.error("[Generate] Background render setup failed (non-fatal):", bgErr);
         }
 
+        if (successfulAudio === 0 && jobs.length > 0) {
+            console.error(`[Generate] ❌ ALL ${jobs.length} audio uploads failed — episode saved with no audio.`);
+        }
+
         return NextResponse.json({
             episode_id,
             status: "completed",
             playable: playableEpisode,
+            audioWarning: successfulAudio === 0 && jobs.length > 0
+                ? `All ${jobs.length} audio uploads failed. Check OpenAI API key and Supabase Storage.`
+                : undefined,
             debug: { audioLines: jobs.length, audioUploaded: successfulAudio },
         });
     } catch (error: unknown) {

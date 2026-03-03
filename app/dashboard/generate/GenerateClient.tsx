@@ -68,6 +68,20 @@ export default function GenerateClient({ drafts, isPaid }: GenerateClientProps) 
       clearInterval(interval);
       const data = await res.json();
 
+      // Log audio debug info to the browser console for diagnosis
+      if (data.debug) {
+        const { audioLines, audioUploaded } = data.debug as { audioLines: number; audioUploaded: number };
+        if (audioUploaded === 0 && audioLines > 0) {
+          console.error(`[Generate] ❌ ALL audio uploads failed (0/${audioLines} lines). Check OpenAI key and Supabase Storage.`);
+        } else {
+          console.log(`[Generate] ✅ Audio: ${audioUploaded}/${audioLines} lines uploaded successfully.`);
+        }
+      }
+
+      if ((data as { audioWarning?: string }).audioWarning) {
+        toast({ variant: "destructive", title: "Audio upload failed", description: (data as { audioWarning: string }).audioWarning });
+      }
+
       if (!res.ok) {
         if (res.status === 402) {
           toast({ variant: "destructive", title: "API Error", description: "Could not synthesize speech via OpenAI. Please check your API key." });

@@ -458,7 +458,15 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
                 target.addEventListener("error", () => {
                     if (loadTimerRef.current) { clearTimeout(loadTimerRef.current); loadTimerRef.current = null; }
                     if (advanceGenRef.current !== gen) return;
-                    advanceFnRef.current();
+                    console.warn("[AnimationEngine] Audio load error for URL:", url);
+                    // Fall back to word-count timing with mouth animation so the scene
+                    // still looks correct even when audio fails to load.
+                    onStarted?.();
+                    const wc = text.trim().split(/\s+/).length;
+                    safetyTimerRef.current = setTimeout(() => {
+                        if (advanceGenRef.current !== gen) return;
+                        advanceFnRef.current();
+                    }, Math.max(NO_AUDIO_LINE_MS, wc * 350) + LINE_GAP_MS);
                 }, { once: true });
                 loadTimerRef.current = setTimeout(() => {
                     loadTimerRef.current = null;
