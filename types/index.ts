@@ -62,16 +62,11 @@ export interface Payment {
     created_at: string;
 }
 
-// ─── Script JSON Schema ─────────────────────────────────
-export interface ScriptDialogue {
-    line: string;
-    mouthShape: string;
-}
-
 export interface ScriptCharacter {
     name: string;
-    position: string;
-    dialogue: ScriptDialogue[];
+    voice?: string;
+    position?: string;
+    dialogue: string[];
 }
 
 export interface ScriptScene {

@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
 
         /* ── 2b. Estimate episode duration (for duration_sec field only) ── */
         const allWords = scriptJSON.scenes
-            .flatMap((s) => s.characters.flatMap((c) => c.dialogue.map((d) => d.line)))
+            .flatMap((s) => s.characters.flatMap((c) => c.dialogue)) // dialogue is just string[] now
             .join(" ")
             .split(/\s+/)
             .filter(Boolean);
@@ -177,9 +177,12 @@ export async function POST(req: NextRequest) {
 
             const characters: SceneCharacter[] = scene.characters.map((char) => {
                 const baseName = char.name.toLowerCase();
+                const voiceId = (char as any).voice || VOICE_MAP[baseName] || DEFAULT_VOICE_ID;
+
                 return {
                     name: char.name,
                     position: char.position as SceneCharacter["position"],
+                    voice: voiceId,
                     assets: {
                         body: resolve(`${baseName}_body`),
                         head: resolve(`${baseName}_head`),
@@ -189,9 +192,10 @@ export async function POST(req: NextRequest) {
                             talking: resolve(`${baseName}_mouth_talking`),
                         },
                     },
-                    dialogue: char.dialogue.map((dl) => ({
-                        line: dl.line,
-                        mouthShape: dl.mouthShape || "talking",
+                    // user JSON supplies raw strings. AnimationEngine expects {line, mouthShape} objects.
+                    dialogue: (char.dialogue as unknown as string[]).map((dlStr) => ({
+                        line: dlStr,
+                        mouthShape: "talking",
                     })),
                 };
             });
@@ -220,7 +224,7 @@ export async function POST(req: NextRequest) {
 
         for (const scene of resolvedScenes) {
             for (const char of scene.characters) {
-                const voice = VOICE_MAP[char.name.toLowerCase()] || DEFAULT_VOICE_ID;
+                const voice = (char as any).voice || DEFAULT_VOICE_ID;
                 for (const dl of char.dialogue) {
                     if (!dl.line || dl.line.trim() === "" || /^\[pause\]$/i.test(dl.line.trim())) {
                         globalIdx++;

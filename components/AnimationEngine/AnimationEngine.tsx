@@ -397,19 +397,26 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
             };
 
             target.onstalled = () => {
+                // The browser stopped receiving audio data (slow network / CDN hiccup).
+                //
+                // CRITICAL: Do NOT call a.load() here. That resets audio to byte 0,
+                // which: (a) causes audible "cut-off" on desktop (audio restarts from
+                // beginning) and (b) requires a new user gesture on iOS to play again
+                // (because a.load() re-locks the element), explaining why iPhone users
+                // hear NO audio at all — every line stalls → load() → iOS rejects play().
+                //
+                // Recovery: simply call play() if the element is paused. This resumes
+                // from the current buffer position without resetting anything.
+                // The safety timer (durationMs + 3s) advances the scene if truly stuck.
                 const stalledGen = gen;
                 setTimeout(() => {
                     const a = audioRef.current;
-                    if (!a || !a.src || !a.paused || a.ended || pausedRef.current) return;
-                    if (advanceGenRef.current !== stalledGen) return; // scene already advanced
-                    a.load();
-                    // Wait for the browser to buffer before playing — calling play()
-                    // immediately after load() throws AbortError on Android Chrome.
-                    a.addEventListener("canplaythrough", () => {
-                        if (advanceGenRef.current !== stalledGen || pausedRef.current) return;
+                    if (!a || !a.src || a.ended || pausedRef.current) return;
+                    if (advanceGenRef.current !== stalledGen) return;
+                    if (a.paused) {
                         a.play().catch(() => { });
-                    }, { once: true });
-                }, 1500);
+                    }
+                }, 2000);
             };
 
             const doPlay = () => {
