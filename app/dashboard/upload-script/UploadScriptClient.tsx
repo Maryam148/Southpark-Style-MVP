@@ -27,7 +27,15 @@ function validateScriptJSON(raw: string): { ok: boolean; data?: ScriptJSON; erro
       } else {
         (scene.characters as Record<string, unknown>[]).forEach((char, j) => {
           if (!char.name) errors.push(`Scene ${i + 1}, Character ${j + 1}: missing "name".`);
-          if (!Array.isArray(char.dialogue)) errors.push(`Scene ${i + 1}, Character ${j + 1}: "dialogue" must be an array.`);
+          if (!Array.isArray(char.dialogue)) {
+            errors.push(`Scene ${i + 1}, Character ${j + 1}: "dialogue" must be an array.`);
+          } else {
+            char.dialogue.forEach((dl: any, k: number) => {
+              if (typeof dl !== "object" || dl === null || !dl.line || typeof dl.line !== "string") {
+                errors.push(`Scene ${i + 1}, Char ${j + 1} Dialogue Line ${k + 1}: MUST be an object containing a "line" string (e.g. { "line": "...", "mouthShape": "..." }). Raw strings ["..."] are not allowed.`);
+              }
+            });
+          }
         });
       }
     });
@@ -43,15 +51,38 @@ function extractCharacters(scenes: ScriptScene[]) {
 }
 
 const EXAMPLE_JSON = JSON.stringify({
-  episodeTitle: "The Big Heist",
-  scenes: [{
-    sceneId: "scene_01", sceneName: "The Planning Room", background: "planning_room_bg",
-    characters: [
-      { name: "Jax", position: "left", dialogue: [{ line: "Alright team, here's the plan...", mouthShape: "A" }] },
-      { name: "Mika", position: "right", dialogue: [{ line: "This better work, Jax.", mouthShape: "E" }] },
-    ],
-    props: ["table", "blueprint"],
-  }],
+  episodeTitle: "The Problem With Everything",
+  scenes: [
+    {
+      sceneId: "scene_01",
+      sceneName: "Morning Realizations",
+      background: "placeholder",
+      characters: [
+        {
+          name: "ALEX",
+          position: "left",
+          dialogue: [
+            { line: "Why does every morning feel like a warning?", mouthShape: "talking" },
+            { line: "I woke up tired again.", mouthShape: "talking" },
+            { line: "That can not be normal, right?", mouthShape: "talking" }
+          ]
+        },
+        {
+          name: "BEN",
+          position: "right",
+          dialogue: [
+            { line: "My dad says mornings are proof life is unfair.", mouthShape: "talking" },
+            { line: "He also says coffee is a personality.", mouthShape: "talking" },
+            { line: "I think he is right about both.", mouthShape: "talking" }
+          ]
+        }
+      ],
+      props: [
+        { name: "snow_covered_street", animation: "idle" },
+        { name: "street_sign", text: "GOOD MORNING — ALLEGEDLY" }
+      ]
+    }
+  ]
 }, null, 2);
 
 /* ── Component ──────────────────────────────────── */
