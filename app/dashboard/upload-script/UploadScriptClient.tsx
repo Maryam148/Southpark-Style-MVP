@@ -28,11 +28,11 @@ function validateScriptJSON(raw: string): { ok: boolean; data?: ScriptJSON; erro
         (scene.characters as Record<string, unknown>[]).forEach((char, j) => {
           if (!char.name) errors.push(`Scene ${i + 1}, Character ${j + 1}: missing "name".`);
           if (!Array.isArray(char.dialogue)) {
-            errors.push(`Scene ${i + 1}, Character ${j + 1}: "dialogue" must be an array of strings.`);
+            errors.push(`Scene ${i + 1}, Character ${j + 1}: "dialogue" must be an array.`);
           } else {
-            char.dialogue.forEach((dl: unknown, k: number) => {
-              if (typeof dl !== "string") {
-                errors.push(`Scene ${i + 1}, Char ${j + 1} Dialogue Line ${k + 1}: MUST be a plain string. Objects are not allowed in this format.`);
+            char.dialogue.forEach((dl: any, k: number) => {
+              if (typeof dl !== "object" || dl === null || !dl.line || typeof dl.line !== "string") {
+                errors.push(`Scene ${i + 1}, Char ${j + 1} Dialogue Line ${k + 1}: MUST be an object containing a "line" string (e.g. { "line": "...", "mouthShape": "..." }). Raw strings ["..."] are not allowed.`);
               }
             });
           }
@@ -52,31 +52,431 @@ function extractCharacters(scenes: ScriptScene[]) {
 
 const EXAMPLE_JSON = JSON.stringify({
   "episodeTitle": "The Problem With Everything",
-  "totalDurationMinutes": 6.5,
+  "showTitle": "The Problem With Everything",
+  "estimatedRuntime": "6-7 minutes",
+  "totalScenes": 8,
   "scenes": [
     {
       "sceneId": 1,
       "sceneName": "Morning Realizations",
-      "durationSeconds": 70,
-      "location": "Snowy town street",
+      "background": "placeholder",
       "characters": [
         {
-          "name": "Alex",
-          "voice": "child_male",
+          "name": "ALEX",
+          "position": "left",
+          "assets": null,
           "dialogue": [
-            "Why does every morning feel like a warning?",
-            "I woke up tired again.",
-            "That can't be normal, right?"
+            {
+              "line": "Why does every morning feel like a warning?",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "I woke up tired again.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "That can not be normal, right?",
+              "mouthShape": "talking"
+            }
           ]
         },
         {
-          "name": "Ben",
-          "voice": "child_male",
+          "name": "BEN",
+          "position": "right",
+          "assets": null,
           "dialogue": [
-            "My dad says mornings are proof life is unfair.",
-            "He also says coffee is a personality.",
-            "I think he's right about both."
+            {
+              "line": "My dad says mornings are proof life is unfair.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "He also says coffee is a personality.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "I think he is right about both.",
+              "mouthShape": "talking"
+            }
           ]
+        }
+      ],
+      "props": [
+        {
+          "name": "snow_covered_street",
+          "animation": "idle"
+        },
+        {
+          "name": "street_sign",
+          "text": "GOOD MORNING — ALLEGEDLY"
+        }
+      ]
+    },
+    {
+      "sceneId": 2,
+      "sceneName": "Classroom Motivation",
+      "background": "placeholder",
+      "characters": [
+        {
+          "name": "TEACHER",
+          "position": "front",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "Good morning class.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Today we will talk about goals.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Please pretend you care.",
+              "mouthShape": "talking"
+            }
+          ]
+        },
+        {
+          "name": "MAX",
+          "position": "student_left",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "I had goals once.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Then homework happened.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Now I just survive.",
+              "mouthShape": "talking"
+            }
+          ]
+        }
+      ],
+      "props": [
+        {
+          "name": "blackboard",
+          "text": "GOALS — AND WHY YOU WONT REACH THEM"
+        }
+      ]
+    },
+    {
+      "sceneId": 3,
+      "sceneName": "Hallway Truths",
+      "background": "placeholder",
+      "characters": [
+        {
+          "name": "BEN",
+          "position": "left",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "I asked for advice.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "They told me to work harder.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "I was already working as hard as possible.",
+              "mouthShape": "talking"
+            }
+          ]
+        },
+        {
+          "name": "ALEX",
+          "position": "right",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "Adults love vague advice.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "It sounds smart but fixes nothing.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "It is their favorite skill.",
+              "mouthShape": "talking"
+            }
+          ]
+        }
+      ],
+      "props": [
+        {
+          "name": "hallway_poster",
+          "text": "BELIEVE IN YOURSELF — SPONSORED BY NOBODY"
+        }
+      ]
+    },
+    {
+      "sceneId": 4,
+      "sceneName": "Lunch Break Economics",
+      "background": "placeholder",
+      "characters": [
+        {
+          "name": "MAX",
+          "position": "left",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "Why does lunch cost money?",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Are we not already trapped here?",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "This feels illegal.",
+              "mouthShape": "talking"
+            }
+          ]
+        },
+        {
+          "name": "BEN",
+          "position": "right",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "This pizza tastes like regret.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "And disappointment.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Mostly disappointment.",
+              "mouthShape": "talking"
+            }
+          ]
+        }
+      ],
+      "props": [
+        {
+          "name": "cafeteria_menu",
+          "text": "TODAY: MYSTERY MEAT — DO NOT ASK"
+        }
+      ]
+    },
+    {
+      "sceneId": 5,
+      "sceneName": "News Knows Nothing",
+      "background": "placeholder",
+      "characters": [
+        {
+          "name": "NEWS_ANCHOR",
+          "position": "center",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "Experts disagree on everything.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "But they all agree it is serious.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "More at eight.",
+              "mouthShape": "talking"
+            }
+          ]
+        },
+        {
+          "name": "DAD",
+          "position": "right",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "See? Nobody knows anything.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "That makes me feel better.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "I am going to argue online now.",
+              "mouthShape": "talking"
+            }
+          ]
+        }
+      ],
+      "props": [
+        {
+          "name": "tv_screen",
+          "animation": "screen_glow"
+        },
+        {
+          "name": "chyron",
+          "text": "BREAKING: EVERYTHING IS FINE AND ALSO TERRIBLE"
+        }
+      ]
+    },
+    {
+      "sceneId": 6,
+      "sceneName": "Playground Philosophy 2.0",
+      "background": "placeholder",
+      "characters": [
+        {
+          "name": "ALEX",
+          "position": "left",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "What if adulthood is just pretending?",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Like pretending you know stuff.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "And nobody checks.",
+              "mouthShape": "talking"
+            }
+          ]
+        },
+        {
+          "name": "MAX",
+          "position": "right",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "That explains teachers.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "And parents.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "And politicians.",
+              "mouthShape": "talking"
+            }
+          ]
+        }
+      ],
+      "props": [
+        {
+          "name": "swing_set",
+          "animation": "swinging"
+        },
+        {
+          "name": "playground_sign",
+          "text": "PLAY AT YOUR OWN RISK — EMOTIONALLY"
+        }
+      ]
+    },
+    {
+      "sceneId": 7,
+      "sceneName": "Town Breakdown",
+      "background": "placeholder",
+      "characters": [
+        {
+          "name": "RANDOM_ADULT",
+          "position": "left",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "This town used to be better.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "I do not remember when.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "But I am sure it was.",
+              "mouthShape": "talking"
+            }
+          ]
+        },
+        {
+          "name": "ALEX",
+          "position": "right",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "Why is everyone mad all the time?",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Did we miss something?",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Was there a meeting?",
+              "mouthShape": "talking"
+            }
+          ]
+        }
+      ],
+      "props": [
+        {
+          "name": "town_bench",
+          "animation": "idle"
+        }
+      ]
+    },
+    {
+      "sceneId": 8,
+      "sceneName": "Nothing Changes",
+      "background": "placeholder",
+      "characters": [
+        {
+          "name": "BEN",
+          "position": "left",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "So after all that...",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Did anything actually happen?",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Or did we just talk a lot?",
+              "mouthShape": "talking"
+            }
+          ]
+        },
+        {
+          "name": "ALEX",
+          "position": "right",
+          "assets": null,
+          "dialogue": [
+            {
+              "line": "I think talking was the thing.",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Same time tomorrow?",
+              "mouthShape": "talking"
+            },
+            {
+              "line": "Yeah. Same time tomorrow.",
+              "mouthShape": "talking"
+            }
+          ]
+        }
+      ],
+      "props": [
+        {
+          "name": "sunset_sky",
+          "animation": "fading"
+        },
+        {
+          "name": "street_sign",
+          "text": "SEE YOU TOMORROW — PROBABLY"
         }
       ]
     }
