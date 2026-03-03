@@ -32,14 +32,15 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: err }, { status: response.status });
         }
 
-        // Stream the response body directly — don't buffer the whole clip before sending.
-        // This lets the browser start buffering/playing as soon as the first bytes arrive
-        // (~200-400ms) instead of waiting for the full audio to generate (2-3s).
-        return new NextResponse(response.body, {
+        // Buffer the full response so we can send a Content-Length header.
+        // iOS Safari will not play chunked-transfer audio without Content-Length,
+        // and desktop browsers have more reliable buffering with a known file size.
+        const audioBuffer = await response.arrayBuffer();
+        return new NextResponse(audioBuffer, {
             headers: {
                 "Content-Type": "audio/mpeg",
+                "Content-Length": String(audioBuffer.byteLength),
                 "Cache-Control": "public, max-age=86400, s-maxage=604800, stale-while-revalidate=604800",
-                "Transfer-Encoding": "chunked",
             },
         });
     } catch (err) {

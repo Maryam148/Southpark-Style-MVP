@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { episode_id } = await req.json();
+        const { episode_id, force } = await req.json();
 
         if (!episode_id) {
             return NextResponse.json(
@@ -136,8 +136,8 @@ export async function POST(req: NextRequest) {
             console.error("[Generate] Asset fetch error:", assetError);
         }
 
-        // Idempotency: if already completed return early
-        if (episode.status === "completed" && (episode.metadata as Record<string, unknown>)?.playable) {
+        // Idempotency: if already completed return early (unless force=true to regenerate audio)
+        if (!force && episode.status === "completed" && (episode.metadata as Record<string, unknown>)?.playable) {
             return NextResponse.json({
                 episode_id,
                 status: "completed",

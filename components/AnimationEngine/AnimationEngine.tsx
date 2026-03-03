@@ -16,7 +16,7 @@ import type { LayerImage, CharacterState } from "./drawHelpers";
 const MOUTH_SWAP_MS = 200;
 const NO_AUDIO_LINE_MS = 1800;
 const LINE_GAP_MS = 400;
-const LOAD_TIMEOUT_MS = 5000;
+const LOAD_TIMEOUT_MS = 12000; // extra runway for on-demand TTS generation (~2-4s at OpenAI)
 
 /* ──────────────────────────────────────────────────────────
     Types
@@ -397,12 +397,18 @@ const AnimationEngine = forwardRef<AnimationEngineHandle, AnimationEngineProps>(
             };
 
             target.onstalled = () => {
+                const stalledGen = gen;
                 setTimeout(() => {
                     const a = audioRef.current;
-                    if (a && a.src && a.paused && !a.ended && !pausedRef.current) {
-                        a.load();
+                    if (!a || !a.src || !a.paused || a.ended || pausedRef.current) return;
+                    if (advanceGenRef.current !== stalledGen) return; // scene already advanced
+                    a.load();
+                    // Wait for the browser to buffer before playing — calling play()
+                    // immediately after load() throws AbortError on Android Chrome.
+                    a.addEventListener("canplaythrough", () => {
+                        if (advanceGenRef.current !== stalledGen || pausedRef.current) return;
                         a.play().catch(() => { });
-                    }
+                    }, { once: true });
                 }, 1500);
             };
 

@@ -24,14 +24,30 @@ interface EpisodePlayerClientProps {
 
 type ExportPhase = "idle" | "preparing" | "recording" | "done";
 
+/** Returns true if the episode was generated with the old on-demand /api/tts approach */
+function hasLegacyAudio(p: PlayableEpisode | null): boolean {
+  if (!p) return false;
+  for (const scene of p.scenes) {
+    for (const char of scene.characters) {
+      for (const dl of char.dialogue) {
+        if (dl.audio && dl.audio.startsWith("/api/tts")) return true;
+      }
+    }
+  }
+  return false;
+}
+
 export default function EpisodePlayerClient({
-  episodeId: _episodeId, title, createdAt, playable, error,
+  episodeId, title, createdAt, playable, error,
 }: EpisodePlayerClientProps) {
   const { toast } = useToast();
   const { user } = useUser();
   const [isMounted, setIsMounted] = useState(false);
   const [phase, setPhase] = useState<ExportPhase>("idle");
   const [progress, setProgress] = useState(0);
+  const [isFixingAudio, setIsFixingAudio] = useState(false);
+  const [currentPlayable, setCurrentPlayable] = useState(playable);
+  const isLegacy = hasLegacyAudio(currentPlayable);
 
   const playerWrapRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<ScenePlayerHandle | null>(null);
@@ -54,6 +70,38 @@ export default function EpisodePlayerClient({
   const canExport = true || user?.plan === "pro" || user?.plan === "creator_plus";
 
   /* ══════════════════════════════════════════════════════════
+     FIX AUDIO — Re-generate audio for old /api/tts episodes
+     using the new pre-generate + Supabase Storage approach.
+     ══════════════════════════════════════════════════════════ */
+  const fixAudio = useCallback(async () => {
+    setIsFixingAudio(true);
+    try {
+      const res = await fetch("/api/generate/episode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ episode_id: episodeId, force: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || `Server error ${res.status}`);
+      }
+      const data = await res.json() as { playable?: PlayableEpisode };
+      if (data.playable) {
+        setCurrentPlayable(data.playable);
+        toast({ title: "Audio fixed!", description: "Episode audio has been re-generated. Press play to hear it." });
+      }
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Fix failed",
+        description: e instanceof Error ? e.message : "Could not regenerate audio. Try again.",
+      });
+    } finally {
+      setIsFixingAudio(false);
+    }
+  }, [episodeId, toast]);
+
+  /* ══════════════════════════════════════════════════════════
      Episode complete — stop MediaRecorder when all scenes finish
      ══════════════════════════════════════════════════════════ */
   const onEpisodeComplete = useCallback(() => {
@@ -73,7 +121,7 @@ export default function EpisodePlayerClient({
      falls back to WebM on Firefox.
      ══════════════════════════════════════════════════════════ */
   const startExport = useCallback(async () => {
-    if (!playable || !playerRef.current) return;
+    if (!currentPlayable || !playerRef.current) return;
 
     try {
       setPhase("recording");
@@ -106,9 +154,9 @@ export default function EpisodePlayerClient({
 
       // 2.5 PREPARE AUDIO EXPORT PLAN
       let plan: ExportAudioPlan | undefined;
-      if (audioCtx && audioDest && playable) {
+      if (audioCtx && audioDest && currentPlayable) {
         setPhase("preparing");
-        plan = await buildExportAudio(playable.scenes, audioCtx, audioDest, (fetched, total) => {
+        plan = await buildExportAudio(currentPlayable.scenes, audioCtx, audioDest, (fetched, total) => {
           setProgress(Math.round((fetched / total) * 100));
         });
         setExportAudioPlan(plan);
@@ -198,7 +246,7 @@ export default function EpisodePlayerClient({
         description: e instanceof Error ? e.message : "Something went wrong while exporting.",
       });
     }
-  }, [playable, title, toast]);
+  }, [currentPlayable, title, toast]);
 
   /* ══════════════════════════════════════════════════════════
      RENDER
@@ -223,7 +271,7 @@ export default function EpisodePlayerClient({
         <div>
           <h1 className="text-xl font-bold text-white sm:text-2xl">{title || "Episode"}</h1>
           <p className="mt-0.5 text-sm text-muted-text-2">
-            {playable ? `${playable.scenes.length} scene${playable.scenes.length === 1 ? "" : "s"}` : ""}
+            {currentPlayable ? `${currentPlayable.scenes.length} scene${currentPlayable.scenes.length === 1 ? "" : "s"}` : ""}
             {isMounted && ` · Created ${new Date(createdAt).toLocaleDateString()}`}
           </p>
         </div>
@@ -241,8 +289,15 @@ export default function EpisodePlayerClient({
             <Link2 className="h-4 w-4" /> Share
           </button>
 
+          {phase === "idle" && isLegacy && (
+            <button onClick={fixAudio} disabled={isFixingAudio}
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-300 transition-colors duration-150 hover:bg-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed">
+              {isFixingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertTriangle className="h-4 w-4" />}
+              {isFixingAudio ? "Fixing Audio…" : "Fix Audio"}
+            </button>
+          )}
           {phase === "idle" && (
-            <button onClick={startExport} disabled={!playable || !canExport}
+            <button onClick={startExport} disabled={!currentPlayable || !canExport}
               className="inline-flex items-center gap-1.5 rounded-md border border-sk-border px-3 py-2 text-sm text-muted-text-1 transition-colors duration-150 hover:bg-surface-2 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed">
               {canExport ? <Download className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               Export Video
@@ -272,12 +327,23 @@ export default function EpisodePlayerClient({
         </div>
       </div>
 
+      {/* Legacy audio warning banner */}
+      {isLegacy && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            This episode was generated with an older audio system and may not play sound on mobile or some browsers.
+            Click <strong>Fix Audio</strong> above to upgrade it — this only takes a moment.
+          </span>
+        </div>
+      )}
+
       {/* Player */}
       <div ref={playerWrapRef} className="relative">
-        {playable && (
+        {currentPlayable && (
           <ScenePlayer
             ref={playerRef}
-            scenes={playable.scenes}
+            scenes={currentPlayable.scenes}
             exportAudioCtx={exportAudioCtx}
             exportAudioDest={exportAudioDest}
             exportAudioPlan={exportAudioPlan}
